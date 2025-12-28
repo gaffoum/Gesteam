@@ -1,9 +1,10 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // Import pour la navigation interne
 import { supabase } from '@/lib/supabase';
 import { getRedirectPath } from '@/lib/auth-guard';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function LoginPage() {
         throw new Error("Ce compte a été suspendu.");
       }
 
-      // 3. Log de connexion (dans un bloc try/catch séparé pour ne pas bloquer le login)
+      // 3. Log de connexion (silencieux)
       try {
         await supabase.from('login_logs').insert({
           user_id: authData.user.id,
@@ -53,10 +54,10 @@ export default function LoginPage() {
           user_agent: window.navigator.userAgent
         });
       } catch (logError) {
-        console.warn("Impossible d'enregistrer le log de connexion :", logError);
+        console.warn("Log non enregistré");
       }
 
-      // 4. Redirection vers la page correspondante
+      // 4. Redirection
       const targetPath = getRedirectPath(profile.role as any);
       router.push(targetPath);
 
@@ -100,6 +101,7 @@ export default function LoginPage() {
               required
             />
           </div>
+
           <button 
             type="submit"
             disabled={isLoading}
@@ -108,6 +110,19 @@ export default function LoginPage() {
             {isLoading ? <Loader2 className="animate-spin" size={18} /> : "Se connecter"}
           </button>
         </form>
+
+        {/* LIEN DE CRÉATION DE COMPTE */}
+        <div className="mt-10 pt-8 border-t border-gray-100 text-center not-italic">
+          <p className="text-gray-400 text-[10px] font-bold uppercase mb-4 tracking-widest">
+            Nouveau sur Gesteam ?
+          </p>
+          <Link 
+            href="/register" 
+            className="inline-flex items-center gap-2 text-[#1a1a1a] font-black uppercase text-xs hover:text-[#ff9d00] transition-colors group"
+          >
+            Créer un Compte <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
       </div>
     </div>
   );
