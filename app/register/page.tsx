@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Mail, Lock, User, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,57 +18,131 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      // 1. Inscription dans Supabase Auth
+      // emailRedirectTo force le retour vers notre route callback pour valider la session
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/login`,
+          data: { 
+            full_name: nom 
+          }
         }
       });
 
       if (error) throw error;
 
       if (data.user) {
-        // Création du profil admin
-        await supabase.from('profiles').insert({
+        // 2. Création du profil initial avec le rôle 'admin'
+        const { error: profileError } = await supabase.from('profiles').insert({
           id: data.user.id,
           email: email,
           nom: nom,
           role: 'admin',
           is_blocked: false
         });
+
+        if (profileError) throw profileError;
         setIsSent(true);
       }
     } catch (err: any) {
-      alert(err.message);
+      alert("Erreur d'inscription : " + err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Écran de confirmation après l'envoi de l'email
   if (isSent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 italic">
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-6 italic">
         <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl text-center">
-          <h2 className="text-3xl font-black uppercase mb-4">Email envoyé !</h2>
-          <p className="text-gray-500 font-bold not-italic">Vérifiez votre boîte de réception pour valider votre compte admin.</p>
+          <div className="w-20 h-20 bg-[#ff9d00]/10 text-[#ff9d00] rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail size={40} />
+          </div>
+          <h2 className="text-3xl font-black uppercase mb-4 tracking-tighter">Vérifiez vos <span className="text-[#ff9d00]">emails</span></h2>
+          <p className="text-gray-400 font-bold not-italic text-sm mb-8">
+            Un lien de confirmation a été envoyé à :<br/>
+            <span className="text-[#1a1a1a] font-black">{email}</span>
+          </p>
+          <div className="space-y-4">
+            <p className="text-[10px] text-gray-400 uppercase font-black not-italic tracking-widest">
+              Une fois confirmé, vous serez redirigé vers la connexion.
+            </p>
+            <button 
+              onClick={() => router.push('/login')} 
+              className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all"
+            >
+              Retour au login
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 italic">
+    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-6 italic">
       <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-gray-100">
-        <h1 className="text-4xl font-black uppercase text-center mb-10">Gesteam <span className="text-[#ff9d00]">Admin</span></h1>
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a1a1a]">
+            Gesteam <span className="text-[#ff9d00]">Admin</span>
+          </h1>
+          <p className="text-gray-400 font-bold not-italic uppercase text-[9px] tracking-[0.3em] mt-2">
+            Créer un compte responsable club
+          </p>
+        </div>
+
         <form onSubmit={handleRegister} className="space-y-5 not-italic">
-          <input type="text" placeholder="Nom complet" className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold" onChange={e => setNom(e.target.value)} required />
-          <input type="email" placeholder="Email" className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold" onChange={e => setEmail(e.target.value)} required />
-          <input type="password" placeholder="Mot de passe" className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold" onChange={e => setPassword(e.target.value)} required />
-          <button disabled={isLoading} className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase hover:bg-[#ff9d00] transition-all flex items-center justify-center gap-3">
-            {isLoading ? <Loader2 className="animate-spin" /> : "Créer mon compte Admin"}
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+            <input 
+              type="text" 
+              placeholder="Nom complet" 
+              className="w-full p-4 pl-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all"
+              onChange={e => setNom(e.target.value)} 
+              required 
+            />
+          </div>
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+            <input 
+              type="email" 
+              placeholder="Email professionnel" 
+              className="w-full p-4 pl-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all"
+              onChange={e => setEmail(e.target.value)} 
+              required 
+            />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+            <input 
+              type="password" 
+              placeholder="Mot de passe" 
+              className="w-full p-4 pl-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all"
+              onChange={e => setPassword(e.target.value)} 
+              required 
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="animate-spin" size={18} /> : <>S'inscrire <ArrowRight size={18}/></>}
           </button>
         </form>
+
+        <div className="mt-8 pt-8 border-t border-gray-100 text-center">
+          <Link 
+            href="/login" 
+            className="inline-flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] hover:text-[#1a1a1a] transition-colors"
+          >
+            <ArrowLeft size={12} /> Déjà un compte ? Se connecter
+          </Link>
+        </div>
       </div>
     </div>
   );
