@@ -1,37 +1,48 @@
 "use client";
-import React from 'react';
-import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { Loader2 } from 'lucide-react';
 
-export default function HomePage() {
+export default function RootPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        // Pas connecté -> Direction Login
+        router.replace('/login');
+      } else {
+        // Déjà connecté -> On vérifie si le club est créé
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('club_id, role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.role === 'superAdmin') {
+          router.replace('/backoffice');
+        } else if (profile?.club_id) {
+          router.replace('/dashboard');
+        } else {
+          router.replace('/onboarding');
+        }
+      }
+    };
+
+    checkAuth();
+  }, [router]);
+
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col items-center justify-center text-white p-6">
-      <div className="text-center italic">
-        <h1 className="text-7xl md:text-8xl font-black uppercase tracking-tighter mb-2">
-          SKRINERS<span className="text-[#ff9d00]">LAB</span>
-        </h1>
-        <p className="text-gray-500 font-bold uppercase tracking-[0.5em] mb-12 not-italic text-sm">
-          Football Management System
+    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
+      <div className="text-center">
+        <Loader2 className="animate-spin text-[#ff9d00] mx-auto mb-4" size={40} />
+        <p className="font-black uppercase text-[10px] tracking-widest text-gray-400 italic">
+          Chargement de Gesteam...
         </p>
       </div>
-      
-      <div className="flex flex-col md:flex-row gap-6 w-full max-w-lg">
-        <Link 
-          href="/mon-club" 
-          className="flex-1 bg-white text-[#1a1a1a] px-8 py-6 rounded-2xl font-black uppercase tracking-widest text-center hover:bg-[#ff9d00] transition-all duration-300 shadow-2xl"
-        >
-          Espace Club
-        </Link>
-        <Link 
-          href="/admin" 
-          className="flex-1 border-2 border-white/20 text-white px-8 py-6 rounded-2xl font-black uppercase tracking-widest text-center hover:bg-white hover:text-[#1a1a1a] transition-all duration-300"
-        >
-          Admin SaaS
-        </Link>
-      </div>
-
-      <p className="mt-12 text-[10px] text-gray-600 uppercase tracking-widest font-bold">
-        v1.0.0 — Secured Access
-      </p>
     </div>
   );
 }
