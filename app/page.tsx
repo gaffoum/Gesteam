@@ -9,24 +9,25 @@ export default function RootPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // On récupère la session actuelle
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        // Pas connecté -> Direction Login
+        // AUCUNE SESSION : On force le login
         router.replace('/login');
       } else {
-        // Déjà connecté -> On vérifie si le club est créé
+        // SESSION EXISTANTE : On vérifie l'état du profil
         const { data: profile } = await supabase
           .from('profiles')
-          .select('club_id, role')
+          .select('club_id')
           .eq('id', session.user.id)
           .single();
 
-        if (profile?.role === 'superAdmin') {
-          router.replace('/backoffice');
-        } else if (profile?.club_id) {
+        if (profile?.club_id) {
+          // Club déjà créé : Dashboard
           router.replace('/dashboard');
         } else {
+          // Club à créer : Onboarding
           router.replace('/onboarding');
         }
       }
@@ -37,12 +38,7 @@ export default function RootPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
-      <div className="text-center">
-        <Loader2 className="animate-spin text-[#ff9d00] mx-auto mb-4" size={40} />
-        <p className="font-black uppercase text-[10px] tracking-widest text-gray-400 italic">
-          Chargement de Gesteam...
-        </p>
-      </div>
+      <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
     </div>
   );
 }

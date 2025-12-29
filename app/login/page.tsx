@@ -18,25 +18,30 @@ export default function LoginPage() {
     setErrorMessage(null);
 
     try {
-      // 1. Authentification
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
       if (data?.user) {
-        console.log("Connexion réussie ! Redirection forcée en cours...");
-        
-        // 2. REDIRECTION RADICALE
-        // Au lieu de router.push, on utilise window.location.href
-        // Cela force le navigateur à recharger complètement la destination
-        // et garantit que le middleware détecte bien la nouvelle session.
-        window.location.href = '/onboarding';
+        // VÉRIFICATION DU PROFIL AVANT REDIRECTION
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('club_id')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profile?.club_id) {
+          // Si le club existe, on va au Dashboard
+          window.location.href = '/dashboard';
+        } else {
+          // Sinon, on va créer le club
+          window.location.href = '/onboarding';
+        }
       }
     } catch (err: any) {
-      console.error("Erreur login:", err.message);
       setErrorMessage(err.message === "Invalid login credentials" 
         ? "Email ou mot de passe incorrect" 
         : err.message);
