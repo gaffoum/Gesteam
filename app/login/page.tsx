@@ -1,68 +1,45 @@
 "use client";
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // Import pour la navigation interne
 import { supabase } from '@/lib/supabase';
-import { getRedirectPath } from '@/lib/auth-guard';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage(null);
 
     try {
       // 1. Authentification
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      // 2. Récupération du profil
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, is_blocked')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        throw new Error("Erreur de sécurité (RLS) : " + profileError.message);
+      if (data?.user) {
+        console.log("Connexion réussie ! Redirection forcée en cours...");
+        
+        // 2. REDIRECTION RADICALE
+        // Au lieu de router.push, on utilise window.location.href
+        // Cela force le navigateur à recharger complètement la destination
+        // et garantit que le middleware détecte bien la nouvelle session.
+        window.location.href = '/onboarding';
       }
-
-      if (!profile) {
-        await supabase.auth.signOut();
-        throw new Error("Profil introuvable en base de données.");
-      }
-
-      if (profile.is_blocked) {
-        await supabase.auth.signOut();
-        throw new Error("Ce compte a été suspendu.");
-      }
-
-      // 3. Log de connexion (silencieux)
-      try {
-        await supabase.from('login_logs').insert({
-          user_id: authData.user.id,
-          role: profile.role,
-          user_agent: window.navigator.userAgent
-        });
-      } catch (logError) {
-        console.warn("Log non enregistré");
-      }
-
-      // 4. Redirection
-      const targetPath = getRedirectPath(profile.role as any);
-      router.push(targetPath);
-
     } catch (err: any) {
-      alert(err.message);
+      console.error("Erreur login:", err.message);
+      setErrorMessage(err.message === "Invalid login credentials" 
+        ? "Email ou mot de passe incorrect" 
+        : err.message);
     } finally {
       setIsLoading(false);
     }
@@ -75,53 +52,70 @@ export default function LoginPage() {
           <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a1a1a]">
             Gesteam <span className="text-[#ff9d00]">Login</span>
           </h1>
-          <p className="text-gray-400 font-bold not-italic uppercase text-[9px] tracking-widest mt-2">
-            Accès sécurisé à votre espace
+          <p className="text-gray-400 font-bold not-italic uppercase text-[9px] tracking-[0.3em] mt-2">
+            Accès responsable & staff
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6 not-italic">
-          <div>
-            <label className="block text-[10px] font-black uppercase mb-2 ml-4 text-gray-400">Email</label>
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-bold not-italic border border-red-100 animate-pulse">
+            <AlertCircle size={18} />
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-5 not-italic">
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
             <input 
               type="email" 
-              placeholder="votre@email.com" 
-              className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] focus:bg-white outline-none font-bold transition-all text-sm"
-              onChange={e => setEmail(e.target.value)} 
-              required
+              placeholder="Email" 
+              className="w-full p-4 pl-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all"
+              onChange={e => setEmail(e.target.value)}
+              value={email}
+              required 
             />
           </div>
-          <div>
-            <label className="block text-[10px] font-black uppercase mb-2 ml-4 text-gray-400">Mot de passe</label>
+
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
             <input 
-              type="password" 
-              placeholder="••••••••" 
-              className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] focus:bg-white outline-none font-bold transition-all text-sm"
-              onChange={e => setPassword(e.target.value)} 
-              required
+              type={showPassword ? "text" : "password"} 
+              placeholder="Mot de passe" 
+              className="w-full p-4 pl-12 pr-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all"
+              onChange={e => setPassword(e.target.value)}
+              value={password}
+              required 
             />
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)} 
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#ff9d00] transition-colors"
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
 
           <button 
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all shadow-xl disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={isLoading} 
+            className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
           >
-            {isLoading ? <Loader2 className="animate-spin" size={18} /> : "Se connecter"}
+            {isLoading ? <Loader2 className="animate-spin" size={18} /> : <>Connexion <LogIn size={18}/></>}
           </button>
         </form>
 
-        {/* LIEN DE CRÉATION DE COMPTE */}
-        <div className="mt-10 pt-8 border-t border-gray-100 text-center not-italic">
-          <p className="text-gray-400 text-[10px] font-bold uppercase mb-4 tracking-widest">
-            Nouveau sur Gesteam ?
+        <div className="mt-8 pt-8 border-t border-gray-100 text-center">
+          <p className="text-gray-400 font-bold uppercase text-[10px]">
+            Pas encore de compte ?{" "}
+            <button 
+              type="button"
+              onClick={() => window.location.href = '/register'} 
+              className="text-[#ff9d00] hover:underline font-black"
+            >
+              S'inscrire ici
+            </button>
           </p>
-          <Link 
-            href="/register" 
-            className="inline-flex items-center gap-2 text-[#1a1a1a] font-black uppercase text-xs hover:text-[#ff9d00] transition-colors group"
-          >
-            Créer un Compte <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
         </div>
       </div>
     </div>
