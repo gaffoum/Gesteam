@@ -10,51 +10,50 @@ export default function RootPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // 1. Récupération de la session
+        // 1. Récupération de la session actuelle
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError || !session) {
-          console.log("Pas de session, redirection Login");
+          console.log("Aucune session active");
           router.replace('/login');
           return;
         }
 
-        // 2. Récupération du profil
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('club_id, role')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profileError) {
-          // C'est souvent ici que ça bloque en prod (Erreur RLS ou Pas de résultat)
-          console.error("Erreur récupération profil:", profileError.message);
-          // Par sécurité, si on n'arrive pas à lire le profil, on ne redirige pas aveuglément vers onboarding
-          // On peut rediriger vers login pour forcer un refresh ou rester bloqué pour debug
-          // Pour l'instant, laissons la logique suivre son cours, mais check tes logs !
+        // --- SÉCURITÉ PRIORITAIRE POUR VOTRE ACCÈS ---
+        // On vérifie l'email directement dans la session Auth
+        if (session.user.email === 'gaffoum@gmail.com') {
+          console.log("Accès SuperAdmin forcé par email");
+          router.replace('/backoffice');
+          return;
         }
 
-        console.log("Profil trouvé:", profile); // Regarde ceci dans la console F12 en prod
+        // 2. Tentative de récupération du profil
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('club_id, role')
+          .eq('id', session.user.id);
 
-        // LOGIQUE DE REDIRECTION
-        
-        // 1. Priorité absolue au SuperAdmin
-        if (profile?.role === 'superAdmin' || session.user.email === 'gaffoum@gmail.com') {
-          // J'ai ajouté le check email en dur par sécurité au cas où le rôle n'est pas chargé
+        const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+        if (profileError) {
+          console.error("Erreur de lecture profil:", profileError.message);
+        }
+
+        // 3. Logique de redirection selon le rôle ou le club
+        if (profile?.role === 'superAdmin') {
           router.replace('/backoffice');
         } 
-        // 2. Si c'est un admin avec un club
         else if (profile?.club_id) {
           router.replace('/dashboard');
         } 
-        // 3. Sinon onboarding
         else {
-          console.log("Pas de club_id trouvé, redirection Onboarding");
+          // Si l'utilisateur est connecté mais n'a pas de profil/club, il va à l'onboarding
+          console.log("Utilisateur sans club_id, direction onboarding");
           router.replace('/onboarding');
         }
 
       } catch (error) {
-        console.error("Erreur critique dans checkAuth:", error);
+        console.error("Erreur critique d'authentification:", error);
         router.replace('/login');
       }
     };
@@ -66,7 +65,9 @@ export default function RootPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-        <p className="text-gray-400 text-xs uppercase tracking-widest font-bold">Chargement...</p>
+        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest italic">
+          Vérification des accès...
+        </p>
       </div>
     </div>
   );
