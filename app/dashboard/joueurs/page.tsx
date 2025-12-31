@@ -1,51 +1,35 @@
 "use client";
-import React, { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
-import Papa from 'papaparse';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase'; 
 import { 
-  Users, Plus, Search, ArrowLeft, Loader2, Trash2, Edit2,
-  User, Download, Upload, List, LayoutGrid, Camera, ChevronDown, Filter
+  Plus, Search, User as UserIcon, ArrowLeft, 
+  Loader2, Trash2, LayoutGrid, List, Share2, ChevronRight 
 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function PlayersListPage() {
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
+export default function JoueursPage() {
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
   const [joueurs, setJoueurs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPoste, setSelectedPoste] = useState('');
-  const [clubId, setClubId] = useState<string | null>(null);
-  
-  // États pour la vue et l'upload
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJoueurs();
   }, []);
 
   const fetchJoueurs = async () => {
+    setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/login'); return; }
+      if (!session) return;
 
-      const { data: profile } = await supabase
-        .from('profiles').select('club_id').eq('id', session.user.id).single();
-
-      if (profile?.club_id) {
-        setClubId(profile.club_id);
-        const { data, error } = await supabase
-          .from('joueurs')
-          .select('*')
-          .eq('club_id', profile.club_id)
-          .order('nom', { ascending: true });
-        if (error) throw error;
-        setJoueurs(data || []);
-      }
+      const { data, error } = await supabase
+        .from('joueurs')
+        .select('*')
+        .order('nom', { ascending: true });
+      
+      if (error) throw error;
+      setJoueurs(data || []);
     } catch (err) {
       console.error("Erreur chargement joueurs:", err);
     } finally {
@@ -53,222 +37,131 @@ export default function PlayersListPage() {
     }
   };
 
-  // --- GESTION UPLOAD PHOTO (Bucket: joueurs_photos) ---
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, joueurId: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingPhotoId(joueurId);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${joueurId}-${Date.now()}.${fileExt}`;
-      const filePath = `photos/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('joueurs_photos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('joueurs_photos')
-        .getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from('joueurs')
-        .update({ photo_url: publicUrl })
-        .eq('id', joueurId);
-
-      if (updateError) throw updateError;
-      
-      fetchJoueurs();
-    } catch (err: any) {
-      alert("Erreur photo : " + err.message);
-    } finally {
-      setUploadingPhotoId(null);
-    }
+  const generateInviteLink = (id: string) => {
+    const token = btoa(`player-${id}`); 
+    const url = `${window.location.origin}/register?token=${token}`;
+    navigator.clipboard.writeText(url);
+    alert("LIEN D'INVITATION COPIÉ !");
   };
 
-  // --- LOGIQUE IMPORT CSV ---
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !clubId) return;
-    setImporting(true);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const formattedData = (results.data as any[]).map(row => ({
-          nom: row.nom || 'Inconnu',
-          prenom: row.prenom || '',
-          poste: row.poste || '',
-          maillot: row.maillot ? parseInt(row.maillot) : null,
-          licence: row.licence || '',
-          categorie: row.categorie || '',
-          equipe_concernee: row.equipe_concernee || '',
-          club_id: clubId
-        }));
-        
-        const { error } = await supabase.from('joueurs').insert(formattedData);
-        if (error) alert("Erreur import : " + error.message);
-        else { alert("Importation réussie !"); fetchJoueurs(); }
-        setImporting(false);
-      }
-    });
-  };
-
-  const downloadTemplate = () => {
-    const csvContent = "nom,prenom,poste,maillot,telephone,categorie,licence,email,date_naissance,equipe_concernee\nDOE,John,Attaquant,9,0600000000,U19,12345,john@test.com,2005-01-01,Equipe A";
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "modele_joueurs.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const deleteJoueur = async (id: string) => {
-    if (confirm("Supprimer ce joueur ?")) {
-      await supabase.from('joueurs').delete().eq('id', id);
-      fetchJoueurs();
-    }
-  };
-
-  const filteredJoueurs = joueurs.filter(j => {
-    const matchesName = `${j.prenom} ${j.nom}`.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPoste = selectedPoste === '' || j.poste === selectedPoste;
-    return matchesName && matchesPoste;
-  });
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
-      <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-    </div>
+  const filteredJoueurs = joueurs.filter(j => 
+    `${j.prenom} ${j.nom}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]">
+        <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-8 italic">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
+      <div className="max-w-7xl mx-auto">
         
-        {/* EN-TÊTE */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-          <div>
-            <div className="flex items-center gap-4 mb-2">
-              <Link href="/dashboard" className="text-gray-400 hover:text-[#ff9d00] transition-colors">
-                <ArrowLeft size={24} />
-              </Link>
-              <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a1a1a]">
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+          <div className="flex items-center gap-5">
+            <Link href="/dashboard" className="p-4 bg-white rounded-2xl shadow-sm text-gray-400 hover:text-[#ff9d00] transition-all border border-gray-100">
+              <ArrowLeft size={24} />
+            </Link>
+            <div>
+              <h1 className="text-5xl tracking-tighter text-black italic leading-none">
                 Effectif <span className="text-[#ff9d00]">Joueurs</span>
               </h1>
+              <p className="text-gray-400 text-[10px] tracking-[0.4em] mt-2 font-bold italic not-italic">
+                Gestion des fiches et invitations coach.
+              </p>
             </div>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest ml-10 italic">
-              Gestion des licences & profils
-            </p>
           </div>
-          <Link href="/dashboard/joueurs/nouveau" className="bg-[#1a1a1a] text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all flex items-center gap-3 shadow-xl">
-            <Plus size={18} /> Ajouter un joueur
+          <Link href="/dashboard/joueurs/nouveau" className="bg-black text-white px-8 py-5 rounded-2xl font-black text-xs tracking-widest hover:bg-[#ff9d00] transition-all flex items-center gap-3 shadow-2xl active:scale-95">
+            <Plus size={20} /> AJOUTER UN JOUEUR
           </Link>
         </div>
 
-        {/* BOUTONS IMPORT (CONSERVÉS) */}
-        <div className="flex flex-wrap gap-4 mb-8 ml-10 not-italic">
-          <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase text-gray-500 hover:text-[#ff9d00] shadow-sm transition-all">
-            <Download size={14} /> Modèle CSV
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase text-gray-500 hover:text-[#ff9d00] shadow-sm transition-all">
-            {importing ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
-            Charger Fichier
-          </button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
-        </div>
-
-        {/* RECHERCHE + POSTE + TOGGLE */}
-        <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row gap-4 items-center not-italic">
-          <div className="relative flex-[2] w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+        {/* BARRE DE RECHERCHE & TOGGLE */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-10">
+          <div className="flex-1 relative bg-white p-2 rounded-3xl border border-gray-100 shadow-sm flex items-center">
+            <Search className="absolute left-6 text-gray-300" size={20} />
             <input 
-              type="text" placeholder="Rechercher..." 
-              className="w-full p-4 pl-12 rounded-xl bg-gray-50 border-none outline-none font-bold text-sm focus:ring-2 ring-[#ff9d00]/10 transition-all"
+              type="text" 
+              placeholder="RECHERCHER UN JOUEUR..." 
+              className="w-full p-4 pl-14 rounded-2xl bg-gray-50 border-none outline-none font-black text-[10px] text-black italic uppercase"
+              value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
-          <div className="relative flex-1 w-full">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-            <select 
-              className="w-full p-4 pl-12 rounded-xl bg-gray-50 border-none outline-none font-bold text-sm appearance-none cursor-pointer"
-              onChange={(e) => setSelectedPoste(e.target.value)}
+          <div className="bg-white p-2 rounded-3xl border border-gray-100 shadow-sm flex gap-2">
+            <button 
+              onClick={() => setViewMode('grid')} 
+              className={`p-4 rounded-2xl transition-all ${viewMode === 'grid' ? 'bg-[#ff9d00] text-white shadow-lg' : 'text-gray-300 hover:bg-gray-50'}`}
             >
-              <option value="">Tous les postes</option>
-              <option value="Gardien">Gardien</option><option value="Défenseur">Défenseur</option><option value="Milieu">Milieu</option><option value="Attaquant">Attaquant</option>
-            </select>
-          </div>
-
-          <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
-            <button onClick={() => setViewMode('grid')} className={`p-3 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-[#ff9d00] shadow-sm' : 'text-gray-300'}`}><LayoutGrid size={20} /></button>
-            <button onClick={() => setViewMode('list')} className={`p-3 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-[#ff9d00] shadow-sm' : 'text-gray-300'}`}><List size={20} /></button>
+              <LayoutGrid size={20} />
+            </button>
+            <button 
+              onClick={() => setViewMode('list')} 
+              className={`p-4 rounded-2xl transition-all ${viewMode === 'list' ? 'bg-[#ff9d00] text-white shadow-lg' : 'text-gray-300 hover:bg-gray-50'}`}
+            >
+              <List size={20} />
+            </button>
           </div>
         </div>
 
-        {/* LISTE DES JOUEURS */}
+        {/* AFFICHAGE DES DONNÉES */}
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 not-italic">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredJoueurs.map((joueur) => (
-              <div key={joueur.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:border-[#ff9d00] transition-all group relative">
-                <div className="flex items-center gap-5 mb-6">
-                  <div className="relative w-20 h-20 flex-shrink-0 group/photo">
-                    <div className="w-full h-full bg-gray-50 rounded-[1.8rem] flex items-center justify-center overflow-hidden border-2 border-transparent group-hover:border-[#ff9d00] transition-all">
-                      {joueur.photo_url ? <img src={joueur.photo_url} className="w-full h-full object-cover" /> : <User size={30} className="text-gray-200" />}
+              <div key={joueur.id} className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm hover:border-[#ff9d00]/40 transition-all group relative overflow-hidden">
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-14 h-14 bg-black text-[#ff9d00] rounded-2xl flex items-center justify-center font-black italic text-xl">
+                      {joueur.numero || '?'}
                     </div>
-                    <label className="absolute -bottom-1 -right-1 p-2 bg-[#1a1a1a] text-white rounded-xl cursor-pointer hover:bg-[#ff9d00] shadow-lg border-2 border-white transition-all">
-                      {uploadingPhotoId === joueur.id ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, joueur.id)} />
-                    </label>
+                    <button onClick={() => generateInviteLink(joueur.id)} className="text-gray-300 hover:text-[#ff9d00] transition-colors p-2">
+                      <Share2 size={18} />
+                    </button>
                   </div>
-                  <div>
-                    <h3 className="font-black uppercase text-sm leading-tight">{joueur.prenom} <br/> {joueur.nom}</h3>
-                    <span className="text-[9px] font-black uppercase text-[#ff9d00] italic">{joueur.poste || 'SANS POSTE'}</span>
-                  </div>
+                  <h3 className="text-2xl text-black tracking-tighter mb-1 italic">{joueur.prenom} {joueur.nom}</h3>
+                  <p className="text-gray-400 text-[9px] tracking-widest font-black mb-8 italic">{joueur.poste || 'MILIEU'}</p>
+                  <Link href={`/dashboard/joueurs/${joueur.id}`} className="flex items-center gap-2 text-[10px] text-[#ff9d00] font-black hover:gap-4 transition-all">
+                    CONSULTER LA FICHE <ChevronRight size={14} />
+                  </Link>
                 </div>
-                <div className="flex gap-2">
-                  <button className="flex-[2] p-4 bg-gray-50 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#1a1a1a] hover:text-white transition-all">Modifier</button>
-                  <button onClick={() => deleteJoueur(joueur.id)} className="flex-1 p-4 bg-gray-50 rounded-2xl text-gray-300 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center"><Trash2 size={18}/></button>
-                </div>
+                <UserIcon className="absolute -right-6 -bottom-6 text-gray-50 group-hover:text-[#ff9d00]/5 transition-all duration-700" size={150} />
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden not-italic">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-6 text-[10px] font-black uppercase text-gray-400">Joueur</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-gray-400">Poste</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-gray-400">N°</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-gray-400">Action</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden">
+            <table className="w-full text-left italic">
+              <tbody className="divide-y divide-gray-50">
                 {filteredJoueurs.map((joueur) => (
-                  <tr key={joueur.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                    <td className="p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                        {joueur.photo_url ? <img src={joueur.photo_url} className="w-full h-full object-cover" /> : <User size={18} className="text-gray-200 mx-auto mt-2" />}
+                  <tr key={joueur.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="px-10 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-black text-[#ff9d00] rounded-xl flex items-center justify-center text-xs font-black italic">{joueur.numero || '?'}</div>
+                        <span className="text-black font-black text-sm uppercase">{joueur.prenom} {joueur.nom}</span>
                       </div>
-                      <span className="font-bold text-sm uppercase">{joueur.prenom} {joueur.nom}</span>
                     </td>
-                    <td className="p-4"><span className="px-3 py-1 bg-[#1a1a1a] text-white text-[9px] font-black rounded-lg uppercase">{joueur.poste}</span></td>
-                    <td className="p-4 font-black text-[#ff9d00]">#{joueur.maillot || '--'}</td>
-                    <td className="p-4 flex gap-2">
-                      <button className="p-2 text-gray-300 hover:text-[#1a1a1a]"><Edit2 size={16}/></button>
-                      <button onClick={() => deleteJoueur(joueur.id)} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
+                    <td className="px-10 py-6 text-gray-400 text-[10px] font-black">{joueur.poste}</td>
+                    <td className="px-10 py-6 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => generateInviteLink(joueur.id)} className="p-3 text-gray-300 hover:text-[#ff9d00] transition-colors"><Share2 size={18} /></button>
+                        <Link href={`/dashboard/joueurs/${joueur.id}`} className="p-3 text-gray-300 hover:text-black transition-colors"><ChevronRight size={18} /></Link>
+                        <button className="p-3 text-gray-200 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {filteredJoueurs.length === 0 && !loading && (
+          <div className="py-24 text-center border-4 border-dashed border-gray-100 rounded-[4rem]">
+            <p className="text-gray-300 text-xs tracking-[0.5em] font-black italic">AUCUN JOUEUR TROUVÉ</p>
           </div>
         )}
       </div>

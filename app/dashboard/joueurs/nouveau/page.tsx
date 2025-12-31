@@ -1,135 +1,63 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { 
-  UserPlus, ArrowLeft, Loader2, Save, 
-  User, Hash, Shield, Phone, Mail, Trophy 
-} from 'lucide-react';
+import { ArrowLeft, Save, Loader2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-export default function NewPlayerPage() {
+export default function NouveauJoueurPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [equipes, setEquipes] = useState<any[]>([]);
-  
-  const [formData, setFormData] = useState({
-    nom: '',
-    prenom: '',
-    poste: 'Attaquant',
-    maillot: '',
-    equipe_id: '' // ID de l'équipe sélectionnée
-  });
-
-  useEffect(() => {
-    fetchEquipes();
-  }, []);
-
-  const fetchEquipes = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data: profile } = await supabase
-      .from('profiles').select('club_id').eq('id', session?.user.id).single();
-    
-    if (profile?.club_id) {
-      const { data } = await supabase
-        .from('equipes')
-        .select('id, nom')
-        .eq('club_id', profile.club_id);
-      setEquipes(data || []);
-    }
-  };
+  const [formData, setFormData] = useState({ nom: '', prenom: '', numero: '', poste: 'MILIEU' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const { data: profile } = await supabase
-        .from('profiles').select('club_id').eq('id', session?.user.id).single();
-
-      const { error } = await supabase.from('joueurs').insert([{
-        ...formData,
-        maillot: formData.maillot ? parseInt(formData.maillot) : null,
-        equipe_id: formData.equipe_id || null,
-        club_id: profile?.club_id
-      }]);
-
-      if (error) throw error;
-      router.push('/dashboard/joueurs');
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.from('joueurs').insert([formData]);
+    if (!error) router.push('/dashboard/joueurs');
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-8 italic">
+    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
       <div className="max-w-2xl mx-auto">
-        <Link href="/dashboard/joueurs" className="flex items-center gap-2 text-gray-400 hover:text-[#ff9d00] mb-8 transition-all group">
-          <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-xs font-black uppercase tracking-widest">Retour</span>
-        </Link>
-
-        <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-gray-100">
-          <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a1a1a] mb-10">
-            Nouveau <span className="text-[#ff9d00]">Joueur</span>
-          </h1>
-
-          <form onSubmit={handleSubmit} className="space-y-6 not-italic">
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 italic tracking-widest">Prénom</label>
-                <input required className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none font-bold text-sm focus:ring-2 ring-[#ff9d00]/20"
-                  onChange={e => setFormData({...formData, prenom: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 italic tracking-widest">Nom</label>
-                <input required className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none font-bold text-sm focus:ring-2 ring-[#ff9d00]/20"
-                  onChange={e => setFormData({...formData, nom: e.target.value})} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 italic tracking-widest">Assigner à une équipe</label>
-              <div className="relative">
-                <Trophy className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <select 
-                  className="w-full p-5 pl-12 rounded-2xl bg-gray-50 border-none outline-none font-bold text-sm appearance-none cursor-pointer"
-                  onChange={e => setFormData({...formData, equipe_id: e.target.value})}
-                >
-                  <option value="">Aucune équipe (Indépendant)</option>
-                  {equipes.map(eq => (
-                    <option key={eq.id} value={eq.id}>{eq.nom}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 italic tracking-widest">Poste</label>
-                <select className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none font-bold text-sm appearance-none"
-                  onChange={e => setFormData({...formData, poste: e.target.value})}>
-                  <option value="Gardien">Gardien</option>
-                  <option value="Défenseur">Défenseur</option>
-                  <option value="Milieu">Milieu</option>
-                  <option value="Attaquant">Attaquant</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 italic tracking-widest">N° Maillot</label>
-                <input type="number" className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none font-bold text-sm"
-                  onChange={e => setFormData({...formData, maillot: e.target.value})} />
-              </div>
-            </div>
-
-            <button disabled={loading} className="w-full bg-[#1a1a1a] text-white p-6 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 hover:bg-[#ff9d00] transition-all shadow-xl mt-10">
-              {loading ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Créer le joueur</>}
-            </button>
-          </form>
+        <div className="flex items-center gap-5 mb-12">
+          <Link href="/dashboard/joueurs" className="p-4 bg-white rounded-2xl shadow-sm text-gray-400 hover:text-[#ff9d00] transition-all border border-gray-100">
+            <ArrowLeft size={24} />
+          </Link>
+          <h1 className="text-4xl tracking-tighter text-black italic">Nouveau <span className="text-[#ff9d00]">Joueur</span></h1>
         </div>
+
+        <form onSubmit={handleSubmit} className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label className="text-[10px] text-gray-400 mb-2 block">PRÉNOM</label>
+              <input required type="text" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.prenom} onChange={(e) => setFormData({...formData, prenom: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 mb-2 block">NOM</label>
+              <input required type="text" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.nom} onChange={(e) => setFormData({...formData, nom: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label className="text-[10px] text-gray-400 mb-2 block">NUMÉRO</label>
+              <input type="number" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.numero} onChange={(e) => setFormData({...formData, numero: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 mb-2 block">POSTE</label>
+              <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none cursor-pointer" value={formData.poste} onChange={(e) => setFormData({...formData, poste: e.target.value})}>
+                <option value="GARDIEN">GARDIEN</option>
+                <option value="DÉFENSEUR">DÉFENSEUR</option>
+                <option value="MILIEU">MILIEU</option>
+                <option value="ATTAQUANT">ATTAQUANT</option>
+              </select>
+            </div>
+          </div>
+          <button disabled={loading} className="w-full bg-[#ff9d00] text-white py-5 rounded-2xl font-black text-xs tracking-[0.3em] shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3">
+            {loading ? <Loader2 className="animate-spin" /> : <><Save size={20} /> ENREGISTRER LE JOUEUR</>}
+          </button>
+        </form>
       </div>
     </div>
   );
