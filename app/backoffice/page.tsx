@@ -66,7 +66,8 @@ export default function BackofficePage() {
         </div>
 
         <nav className="space-y-4 flex-1 not-italic">
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 font-black uppercase text-xs">
+          {/* J'ai ajouté 'mb-4' ici pour créer l'espace supplémentaire */}
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 font-black uppercase text-xs mb-4">
             <Database size={18} /> Vue globale
           </div>
           

@@ -164,7 +164,7 @@ export default function SuperAdminPage() {
         </div>
         <nav className="space-y-3 flex-1">
           <Link href="/backoffice" className="p-4 hover:bg-slate-700/50 rounded-xl flex items-center gap-3 text-slate-400 hover:text-white font-bold uppercase text-xs transition-all group">
-            <ArrowLeft size={18} className="group-hover:text-red-500 transition-colors"/> Retour Root
+            <ArrowLeft size={18} className="group-hover:text-red-500 transition-colors"/> Retour vue globale
           </Link>
           <div className="p-4 bg-red-600/10 border border-red-600/20 text-red-500 rounded-xl flex items-center gap-3 font-bold uppercase text-xs cursor-default shadow-[0_0_15px_rgba(220,38,38,0.1)]">
             <Activity size={18} /> Administration BDD
