@@ -85,7 +85,7 @@ function LoginForm() {
 
       <div className="mt-8 text-center pt-8 border-t border-white/5">
         <Link href="/register" className="text-white/40 text-[10px] font-bold uppercase hover:text-[#ff9d00] tracking-widest transition-colors">
-          Nouveau coach ? Créer un compte
+          Nouveau coach ? Créer un compte.
         </Link>
       </div>
     </div>
