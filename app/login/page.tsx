@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-// 1. LE CONTENU DU FORMULAIRE (Isolé pour le Suspense)
-function LoginFormContent() {
+// 1. COMPOSANT INTERNE (Logique et Formulaire)
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -16,7 +16,6 @@ function LoginFormContent() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    // Détection de la confirmation d'email via URL
     const confirmed = searchParams.get('confirmed');
     if (confirmed === 'true') {
       supabase.auth.signOut();
@@ -34,9 +33,9 @@ function LoginFormContent() {
 
     if (error) {
       if (error.message.includes("Invalid login credentials")) {
-        setErrorMsg("Identifiants incorrects ou compte inexistant.");
+        setErrorMsg("Identifiants incorrects.");
       } else if (error.message.includes("Email not confirmed")) {
-        setErrorMsg("Votre email n'est pas encore confirmé.");
+        setErrorMsg("Email non confirmé.");
       } else {
         setErrorMsg(error.message);
       }
@@ -45,15 +44,10 @@ function LoginFormContent() {
     }
 
     if (data?.session) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.session.user.id)
-        .single();
-      
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).single();
       if (profile?.is_blocked) {
         await supabase.auth.signOut();
-        setErrorMsg("Accès refusé : Votre compte est suspendu.");
+        setErrorMsg("Compte suspendu.");
         setLoading(false);
         return;
       }
@@ -62,73 +56,35 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="bg-[#1a1a1a]/85 backdrop-blur-2xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl">
+    <div className="bg-[#1a1a1a]/90 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
       <div className="text-center mb-10">
         <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic">
           Gesteam <span className="text-[#ff9d00]">Pro</span>
         </h2>
         <div className="h-1 w-12 bg-[#ff9d00] mx-auto mt-2 rounded-full" />
-        <p className="text-white/20 text-[9px] font-bold uppercase tracking-[0.3em] mt-4 not-italic">
-          Accès Administration Coach
-        </p>
       </div>
       
       <form onSubmit={handleLogin} className="space-y-6">
         {successMsg && (
           <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2">
-            <CheckCircle2 size={16} /> <span>{successMsg}</span>
+            <CheckCircle2 size={16} /> {successMsg}
           </div>
         )}
-
         {errorMsg && (
           <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2 animate-pulse">
-            <AlertCircle size={16} /> <span>{errorMsg}</span>
+            <AlertCircle size={16} /> {errorMsg}
           </div>
         )}
-
-        <div className="space-y-1">
-          <label className="text-[9px] font-black uppercase text-white/30 ml-4 tracking-widest">Email</label>
-          <input 
-            type="email" 
-            required 
-            placeholder="VOTRE EMAIL" 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all focus:bg-white/[0.08]" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-[9px] font-black uppercase text-white/30 ml-4 tracking-widest">Mot de passe</label>
-          <input 
-            type="password" 
-            required 
-            placeholder="••••••••" 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all focus:bg-white/[0.08]" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-          />
-        </div>
-        
-        <button 
-          type="submit" 
-          disabled={loading} 
-          className="w-full bg-[#ff9d00] text-[#1a1a1a] font-black uppercase py-5 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#ffb338] transition-all shadow-xl shadow-[#ff9d00]/10 mt-2 active:scale-[0.98]"
-        >
-          {loading ? <Loader2 className="animate-spin" size={20} /> : (
-            <>
-              <LogIn size={20} /> 
-              <span className="tracking-tighter italic">Entrer sur le terrain</span>
-            </>
-          )}
+        <input type="email" required placeholder="EMAIL" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:border-[#ff9d00]/50 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" required placeholder="MOT DE PASSE" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:border-[#ff9d00]/50 outline-none" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <button type="submit" disabled={loading} className="w-full bg-[#ff9d00] text-[#1a1a1a] font-black uppercase py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#ffb338] transition-all">
+          {loading ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />} 
+          {loading ? "" : "Entrer sur le terrain"}
         </button>
       </form>
 
-      <div className="mt-10 text-center pt-8 border-t border-white/5">
-        <Link 
-          href="/register" 
-          className="text-white/40 text-[10px] font-bold uppercase hover:text-[#ff9d00] tracking-widest transition-colors italic"
-        >
+      <div className="mt-8 text-center pt-8 border-t border-white/5">
+        <Link href="/register" className="text-white/40 text-[10px] font-bold uppercase hover:text-[#ff9d00] tracking-widest transition-colors">
           Nouveau coach ? Créer un compte
         </Link>
       </div>
@@ -136,30 +92,29 @@ function LoginFormContent() {
   );
 }
 
-// 2. LE WRAPPER PRINCIPAL (Contient le Suspense et le fond d'écran)
+// 2. COMPOSANT PAGE (Structure et Suspense)
 export default function LoginPage() {
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-6 italic overflow-hidden bg-[#0a0a0a]">
-      {/* IMAGE DE FOND LOCALE : back.png */}
+    <div className="relative min-h-screen flex items-center justify-center p-6 italic overflow-hidden bg-black">
       <div 
         className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/back.png')" }}
       >
-        <div className="absolute inset-0 bg-black/85 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px]" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Suspense entoure obligatoirement tout composant utilisant useSearchParams */}
+        {/* LE SUSPENSE DOIT ENTOURER TOUTE LA LOGIQUE CLIENT */}
         <Suspense fallback={
-          <div className="bg-[#1a1a1a]/85 p-10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 border border-white/10">
+          <div className="bg-[#1a1a1a]/90 p-12 rounded-[2.5rem] flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-            <p className="text-white/20 text-[10px] font-bold uppercase tracking-widest italic">Chargement du stade...</p>
+            <p className="text-white/20 text-[10px] font-bold uppercase tracking-widest italic">Chargement...</p>
           </div>
         }>
-          <LoginFormContent />
+          <LoginForm />
         </Suspense>
         
-        <p className="text-center mt-8 text-white/10 text-[9px] font-bold uppercase tracking-[0.5em] not-italic">
+        <p className="text-center mt-8 text-white/10 text-[9px] font-bold uppercase tracking-[0.5em] not-italic italic">
           Gesteam Pro Infrastructure
         </p>
       </div>
