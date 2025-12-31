@@ -9,30 +9,31 @@ export default function RootPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // On récupère la session actuelle
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        // AUCUNE SESSION : On force le login
         router.replace('/login');
       } else {
-        // SESSION EXISTANTE : On vérifie l'état du profil
         const { data: profile } = await supabase
           .from('profiles')
-          .select('club_id')
+          .select('club_id, role')
           .eq('id', session.user.id)
           .single();
 
-        if (profile?.club_id) {
-          // Club déjà créé : Dashboard
+        // 1. Priorité absolue au SuperAdmin
+        if (profile?.role === 'superAdmin') {
+          router.replace('/backoffice');
+        } 
+        // 2. Si c'est un admin avec un club
+        else if (profile?.club_id) {
           router.replace('/dashboard');
-        } else {
-          // Club à créer : Onboarding
+        } 
+        // 3. Sinon onboarding
+        else {
           router.replace('/onboarding');
         }
       }
     };
-
     checkAuth();
   }, [router]);
 

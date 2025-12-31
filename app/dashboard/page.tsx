@@ -11,7 +11,8 @@ import {
   Plus, 
   ArrowUpRight, 
   Loader2, 
-  Activity 
+  Activity,
+  Shield
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -38,7 +39,7 @@ export default function DashboardPage() {
         return;
       }
 
-      // Récupération des données du club et du profil
+      // Récupération du profil et du club
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*, clubs(*)')
@@ -52,16 +53,16 @@ export default function DashboardPage() {
 
       setAdminData(profile);
 
-      // Récupération des compteurs
-      const [joueursRes, teamsRes, matchsRes] = await Promise.all([
+      // Récupération des statistiques réelles depuis les nouvelles tables
+      const [joueursRes, equipesRes, matchsRes] = await Promise.all([
         supabase.from('joueurs').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
-        supabase.from('teams').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
+        supabase.from('equipes').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
         supabase.from('matchs').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id)
       ]);
 
       setStats({
         joueurs: joueursRes.count || 0,
-        equipes: teamsRes.count || 0,
+        equipes: equipesRes.count || 0,
         matchs: matchsRes.count || 0
       });
 
@@ -87,7 +88,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex italic">
-      {/* SIDEBAR */}
+      {/* SIDEBAR AVEC ONGLET ÉQUIPES */}
       <div className="w-72 bg-[#1a1a1a] p-8 text-white flex flex-col fixed h-full shadow-2xl">
         <div className="mb-12">
           <h2 className="text-2xl font-black uppercase tracking-tighter">
@@ -105,6 +106,11 @@ export default function DashboardPage() {
           
           <Link href="/dashboard/joueurs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Users size={18} /> Effectifs
+          </Link>
+
+          {/* NOUVEL ONGLET ÉQUIPES */}
+          <Link href="/dashboard/equipes" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
+            <Shield size={18} /> Équipes
           </Link>
 
           <Link href="/dashboard/matchs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
@@ -130,14 +136,9 @@ export default function DashboardPage() {
       <div className="flex-1 ml-72 p-12 overflow-y-auto min-h-screen">
         <header className="flex justify-between items-center mb-16">
           <div className="flex items-center gap-6">
-            {/* LOGO DU CLUB */}
             {adminData?.clubs?.logo_url ? (
               <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl p-3 flex items-center justify-center border-4 border-white overflow-hidden">
-                <img 
-                  src={adminData.clubs.logo_url} 
-                  alt="Logo" 
-                  className="w-full h-full object-contain"
-                />
+                <img src={adminData.clubs.logo_url} alt="Logo" className="w-full h-full object-contain" />
               </div>
             ) : (
               <div className="w-24 h-24 bg-[#ff9d00] rounded-[2rem] shadow-xl flex items-center justify-center">
@@ -162,7 +163,7 @@ export default function DashboardPage() {
 
         {/* GRILLE DE STATS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 not-italic">
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-default">
+          <Link href="/dashboard/joueurs" className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all">
             <div>
               <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Effectif</p>
               <h3 className="text-5xl font-black text-[#1a1a1a] tracking-tighter">{stats.joueurs}</h3>
@@ -171,20 +172,20 @@ export default function DashboardPage() {
             <div className="p-5 bg-blue-50 text-blue-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
               <Users size={28} />
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-default">
+          <Link href="/dashboard/equipes" className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all">
             <div>
-              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Compétition</p>
+              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Catégories</p>
               <h3 className="text-5xl font-black text-[#1a1a1a] tracking-tighter">{stats.equipes}</h3>
-              <p className="text-[10px] font-bold text-gray-300 uppercase mt-1">Équipes actives</p>
+              <p className="text-[10px] font-bold text-gray-300 uppercase mt-1">Équipes créées</p>
             </div>
             <div className="p-5 bg-purple-50 text-purple-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
-              <Trophy size={28} />
+              <Shield size={28} />
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-default">
+          <Link href="/dashboard/matchs" className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all">
             <div>
               <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Calendrier</p>
               <h3 className="text-5xl font-black text-[#1a1a1a] tracking-tighter">{stats.matchs}</h3>
@@ -193,7 +194,7 @@ export default function DashboardPage() {
             <div className="p-5 bg-green-50 text-green-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
               <Calendar size={28} />
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* SECTION INFOS BAS DE PAGE */}
@@ -211,7 +212,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-black text-[#1a1a1a] uppercase tracking-tight">Système Prêt</p>
-                  <p className="text-[11px] text-gray-400 font-bold italic">Le club {adminData?.clubs?.name} est bien configuré.</p>
+                  <p className="text-[11px] text-gray-400 font-bold italic">Le club {adminData?.clubs?.name} est opérationnel.</p>
                 </div>
               </div>
             </div>
@@ -220,7 +221,7 @@ export default function DashboardPage() {
           <div className="bg-[#ff9d00] p-12 rounded-[3.5rem] shadow-2xl shadow-[#ff9d00]/20 text-[#1a1a1a] flex flex-col justify-between relative overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01]">
             <div className="relative z-10">
               <h4 className="font-black uppercase text-2xl mb-3 tracking-tighter italic">Guide de gestion</h4>
-              <p className="font-bold text-sm opacity-90 mb-8 not-italic max-w-[250px]">Optimisez vos convocations et suivez les performances de vos joueurs.</p>
+              <p className="font-bold text-sm opacity-90 mb-8 not-italic max-w-[250px]">Apprenez à gérer vos catégories et vos convocations efficacement.</p>
               <button className="bg-[#1a1a1a] text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-[#1a1a1a] transition-all shadow-xl">
                 Ouvrir le centre d'aide
               </button>

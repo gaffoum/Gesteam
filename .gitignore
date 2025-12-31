@@ -18,3 +18,12 @@ npm-debug.log*
 yarn-debug.log*
 .DS_Store
 Thumbs.db
+
+# Ignorer les fichiers de données
+*.csv
+sources/
+sources/*.csv
+scripts/*.csv
+*.xlsx
+/data
+/imports
