@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-// 1. COMPOSANT INTERNE (Logique et Formulaire)
+// 1. COMPOSANT INTERNE (Logique isolée)
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,7 +58,7 @@ function LoginForm() {
   return (
     <div className="bg-[#1a1a1a]/90 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
       <div className="text-center mb-10">
-        <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic">
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic text-center">
           Gesteam <span className="text-[#ff9d00]">Pro</span>
         </h2>
         <div className="h-1 w-12 bg-[#ff9d00] mx-auto mt-2 rounded-full" />
@@ -67,12 +67,12 @@ function LoginForm() {
       <form onSubmit={handleLogin} className="space-y-6">
         {successMsg && (
           <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2">
-            <CheckCircle2 size={16} /> {successMsg}
+            <CheckCircle2 size={16} /> <span>{successMsg}</span>
           </div>
         )}
         {errorMsg && (
           <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2 animate-pulse">
-            <AlertCircle size={16} /> {errorMsg}
+            <AlertCircle size={16} /> <span>{errorMsg}</span>
           </div>
         )}
         <input type="email" required placeholder="EMAIL" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:border-[#ff9d00]/50 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -92,7 +92,7 @@ function LoginForm() {
   );
 }
 
-// 2. COMPOSANT PAGE (Structure et Suspense)
+// 2. COMPOSANT PAGE (Wrapper avec Suspense)
 export default function LoginPage() {
   return (
     <div className="relative min-h-screen flex items-center justify-center p-6 italic overflow-hidden bg-black">
@@ -104,19 +104,13 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* LE SUSPENSE DOIT ENTOURER TOUTE LA LOGIQUE CLIENT */}
         <Suspense fallback={
           <div className="bg-[#1a1a1a]/90 p-12 rounded-[2.5rem] flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-            <p className="text-white/20 text-[10px] font-bold uppercase tracking-widest italic">Chargement...</p>
           </div>
         }>
           <LoginForm />
         </Suspense>
-        
-        <p className="text-center mt-8 text-white/10 text-[9px] font-bold uppercase tracking-[0.5em] not-italic italic">
-          Gesteam Pro Infrastructure
-        </p>
       </div>
     </div>
   );
