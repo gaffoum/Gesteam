@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-// 1. COMPOSANT INTERNE (Logique isolée)
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,13 +31,7 @@ function LoginForm() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        setErrorMsg("Identifiants incorrects.");
-      } else if (error.message.includes("Email not confirmed")) {
-        setErrorMsg("Email non confirmé.");
-      } else {
-        setErrorMsg(error.message);
-      }
+      setErrorMsg(error.message.includes("Invalid login credentials") ? "Identifiants incorrects." : error.message);
       setLoading(false);
       return;
     }
@@ -58,57 +51,33 @@ function LoginForm() {
   return (
     <div className="bg-[#1a1a1a]/90 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
       <div className="text-center mb-10">
-        <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic text-center">
-          Gesteam <span className="text-[#ff9d00]">Pro</span>
-        </h2>
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic">Gesteam <span className="text-[#ff9d00]">Pro</span></h2>
         <div className="h-1 w-12 bg-[#ff9d00] mx-auto mt-2 rounded-full" />
       </div>
-      
       <form onSubmit={handleLogin} className="space-y-6">
-        {successMsg && (
-          <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2">
-            <CheckCircle2 size={16} /> <span>{successMsg}</span>
-          </div>
-        )}
-        {errorMsg && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2 animate-pulse">
-            <AlertCircle size={16} /> <span>{errorMsg}</span>
-          </div>
-        )}
-        <input type="email" required placeholder="EMAIL" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:border-[#ff9d00]/50 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" required placeholder="MOT DE PASSE" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:border-[#ff9d00]/50 outline-none" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {successMsg && <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2"><CheckCircle2 size={16} /> {successMsg}</div>}
+        {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2 animate-pulse"><AlertCircle size={16} /> {errorMsg}</div>}
+        <input type="email" required placeholder="EMAIL" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" required placeholder="MOT DE PASSE" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button type="submit" disabled={loading} className="w-full bg-[#ff9d00] text-[#1a1a1a] font-black uppercase py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#ffb338] transition-all">
-          {loading ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />} 
-          {loading ? "" : "Entrer sur le terrain"}
+          {loading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Entrer sur le terrain</>}
         </button>
       </form>
-
       <div className="mt-8 text-center pt-8 border-t border-white/5">
-        <Link href="/register" className="text-white/40 text-[10px] font-bold uppercase hover:text-[#ff9d00] tracking-widest transition-colors">
-          Nouveau coach ? Créer un compte.
-        </Link>
+        <Link href="/register" className="text-white/40 text-[10px] font-bold uppercase hover:text-[#ff9d00] tracking-widest italic">Nouveau coach ? Créer un compte</Link>
       </div>
     </div>
   );
 }
 
-// 2. COMPOSANT PAGE (Wrapper avec Suspense)
 export default function LoginPage() {
   return (
     <div className="relative min-h-screen flex items-center justify-center p-6 italic overflow-hidden bg-black">
-      <div 
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/back.png')" }}
-      >
+      <div className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/back.png')" }}>
         <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px]" />
       </div>
-
       <div className="relative z-10 w-full max-w-md">
-        <Suspense fallback={
-          <div className="bg-[#1a1a1a]/90 p-12 rounded-[2.5rem] flex flex-col items-center gap-4">
-            <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-          </div>
-        }>
+        <Suspense fallback={<div className="flex justify-center"><Loader2 className="animate-spin text-[#ff9d00]" size={40} /></div>}>
           <LoginForm />
         </Suspense>
       </div>
