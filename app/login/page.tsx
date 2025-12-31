@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-// Composant interne pour gérer la logique de recherche
-function LoginContent() {
+// 1. LE CONTENU DU FORMULAIRE (Isolé pour le Suspense)
+function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -16,6 +16,7 @@ function LoginContent() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    // Détection de la confirmation d'email via URL
     const confirmed = searchParams.get('confirmed');
     if (confirmed === 'true') {
       supabase.auth.signOut();
@@ -33,9 +34,9 @@ function LoginContent() {
 
     if (error) {
       if (error.message.includes("Invalid login credentials")) {
-        setErrorMsg("Identifiants incorrects.");
+        setErrorMsg("Identifiants incorrects ou compte inexistant.");
       } else if (error.message.includes("Email not confirmed")) {
-        setErrorMsg("Email non confirmé.");
+        setErrorMsg("Votre email n'est pas encore confirmé.");
       } else {
         setErrorMsg(error.message);
       }
@@ -44,10 +45,15 @@ function LoginContent() {
     }
 
     if (data?.session) {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.session.user.id)
+        .single();
+      
       if (profile?.is_blocked) {
         await supabase.auth.signOut();
-        setErrorMsg("Compte suspendu.");
+        setErrorMsg("Accès refusé : Votre compte est suspendu.");
         setLoading(false);
         return;
       }
@@ -56,7 +62,7 @@ function LoginContent() {
   };
 
   return (
-    <div className="bg-[#1a1a1a]/90 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
+    <div className="bg-[#1a1a1a]/85 backdrop-blur-2xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl">
       <div className="text-center mb-10">
         <h2 className="text-4xl font-black uppercase tracking-tighter text-white italic">
           Gesteam <span className="text-[#ff9d00]">Pro</span>
@@ -69,7 +75,7 @@ function LoginContent() {
       
       <form onSubmit={handleLogin} className="space-y-6">
         {successMsg && (
-          <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+          <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase rounded-2xl flex items-center gap-2">
             <CheckCircle2 size={16} /> <span>{successMsg}</span>
           </div>
         )}
@@ -86,7 +92,7 @@ function LoginContent() {
             type="email" 
             required 
             placeholder="VOTRE EMAIL" 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all" 
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all focus:bg-white/[0.08]" 
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
           />
@@ -98,7 +104,7 @@ function LoginContent() {
             type="password" 
             required 
             placeholder="••••••••" 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all" 
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:border-[#ff9d00]/50 transition-all focus:bg-white/[0.08]" 
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
           />
@@ -107,7 +113,7 @@ function LoginContent() {
         <button 
           type="submit" 
           disabled={loading} 
-          className="w-full bg-[#ff9d00] text-[#1a1a1a] font-black uppercase py-5 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#ffb338] transition-all shadow-xl shadow-[#ff9d00]/10 mt-2"
+          className="w-full bg-[#ff9d00] text-[#1a1a1a] font-black uppercase py-5 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#ffb338] transition-all shadow-xl shadow-[#ff9d00]/10 mt-2 active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : (
             <>
@@ -130,10 +136,11 @@ function LoginContent() {
   );
 }
 
-// Composant principal avec Suspense pour corriger l'erreur Vercel
+// 2. LE WRAPPER PRINCIPAL (Contient le Suspense et le fond d'écran)
 export default function LoginPage() {
   return (
     <div className="relative min-h-screen flex items-center justify-center p-6 italic overflow-hidden bg-[#0a0a0a]">
+      {/* IMAGE DE FOND LOCALE : back.png */}
       <div 
         className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/back.png')" }}
@@ -142,12 +149,14 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-md">
+        {/* Suspense entoure obligatoirement tout composant utilisant useSearchParams */}
         <Suspense fallback={
-          <div className="bg-[#1a1a1a]/85 p-10 rounded-[2.5rem] flex items-center justify-center">
+          <div className="bg-[#1a1a1a]/85 p-10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 border border-white/10">
             <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
+            <p className="text-white/20 text-[10px] font-bold uppercase tracking-widest italic">Chargement du stade...</p>
           </div>
         }>
-          <LoginContent />
+          <LoginFormContent />
         </Suspense>
         
         <p className="text-center mt-8 text-white/10 text-[9px] font-bold uppercase tracking-[0.5em] not-italic">
