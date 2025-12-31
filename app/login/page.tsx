@@ -2,155 +2,177 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { 
-  Loader2, 
-  Mail, 
-  Lock, 
-  LogIn, 
-  Eye, 
-  EyeOff, 
-  AlertCircle 
-} from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowLeft, KeyRound } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
+  
+  // États
+  const [loading, setLoading] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false); // Bascule entre Login et Reset
+  const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
+
+  // Form Data
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // 1. CONNEXION CLASSIQUE
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setErrorMessage(null);
+    setLoading(true);
+    setMessage(null);
 
     try {
-      // 1. Authentification Supabase
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (authError) throw authError;
-
-      if (data?.user) {
-        // 2. Récupération immédiate du profil pour l'aiguillage
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('club_id, role')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError) throw profileError;
-
-        // 3. LOGIQUE DE REDIRECTION PAR PRIORITÉ
-        
-        // PRIORITÉ 1 : SuperAdmin (ex: gaffoum@gmail.com)
-        if (profile?.role === 'superAdmin') {
-          window.location.href = '/backoffice';
-        } 
-        // PRIORITÉ 2 : Admin de club avec club_id déjà renseigné
-        else if (profile?.club_id) {
-          window.location.href = '/dashboard';
-        } 
-        // PRIORITÉ 3 : Admin sans club (Nouvel utilisateur)
-        else {
-          window.location.href = '/onboarding';
-        }
+      if (error) throw error;
+      
+      // Redirection intelligente
+      if (data.user?.email === 'gaffoum@gmail.com') {
+        router.push('/backoffice');
+      } else {
+        router.push('/dashboard');
       }
-    } catch (err: any) {
-      setErrorMessage(
-        err.message === "Invalid login credentials" 
-          ? "Email ou mot de passe incorrect" 
-          : "Erreur de connexion au serveur"
-      );
+    } catch (error: any) {
+      setMessage({ text: "Email ou mot de passe incorrect.", type: 'error' });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  // 2. DEMANDE DE RÉINITIALISATION
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
+
+      if (error) throw error;
+
+      setMessage({ 
+        text: "Si cet email existe, un lien de réinitialisation vous a été envoyé.", 
+        type: 'success' 
+      });
+      // On ne vide pas l'email pour laisser l'utilisateur vérifier s'il a fait une typo
+    } catch (error: any) {
+      setMessage({ text: "Erreur lors de l'envoi : " + error.message, type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-6 italic">
-      <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-gray-100">
+    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl relative overflow-hidden">
         
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a1a1a]">
-            Gesteam <span className="text-[#ff9d00]">Login</span>
+        {/* Décoration Header */}
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#1a1a1a] via-red-600 to-[#1a1a1a]"></div>
+
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-[#1a1a1a]">
+            Gesteam <span className="text-red-600">Pro</span>
           </h1>
-          <p className="text-gray-400 font-bold not-italic uppercase text-[9px] tracking-[0.3em] mt-2 italic text-center">
-            Accès sécurisé plateforme
+          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mt-2">
+            {isResetMode ? "Récupération de compte" : "Connexion à votre espace"}
           </p>
         </div>
 
-        {/* Message d'erreur */}
-        {errorMessage && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-bold not-italic border border-red-100 animate-in fade-in slide-in-from-top-2">
-            <AlertCircle size={18} />
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Formulaire */}
-        <form onSubmit={handleLogin} className="space-y-5 not-italic">
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-            <input 
-              required
-              type="email" 
-              placeholder="Email" 
-              className="w-full p-4 pl-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all shadow-sm"
-              onChange={e => setEmail(e.target.value)}
-              value={email}
-            />
+        {/* --- FORMULAIRE --- */}
+        <form onSubmit={isResetMode ? handleResetPassword : handleLogin} className="space-y-6">
+          
+          {/* Email (Utilisé dans les deux modes) */}
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase text-gray-500 ml-3">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="email" 
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                placeholder="coach@gesteam.fr"
+              />
+            </div>
           </div>
 
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-            <input 
-              required
-              type={showPassword ? "text" : "password"} 
-              placeholder="Mot de passe" 
-              className="w-full p-4 pl-12 pr-12 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#ff9d00] outline-none font-bold text-sm transition-all shadow-sm"
-              onChange={e => setPassword(e.target.value)}
-              value={password}
-            />
-            <button 
-              type="button" 
-              onClick={() => setShowPassword(!showPassword)} 
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#ff9d00] transition-colors"
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
+          {/* Mot de passe (Uniquement en mode Login) */}
+          {!isResetMode && (
+            <div className="space-y-2 animate-in slide-in-from-top-2">
+              <div className="flex justify-between items-center ml-3 mr-1">
+                <label className="text-xs font-black uppercase text-gray-500">Mot de passe</label>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                  type="password" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+              
+              {/* Lien Mot de passe oublié */}
+              <div className="text-right mt-1">
+                <button 
+                  type="button"
+                  onClick={() => { setIsResetMode(true); setMessage(null); }}
+                  className="text-[10px] font-bold uppercase text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
+            </div>
+          )}
 
+          {/* Messages d'erreur / Succès */}
+          {message && (
+            <div className={`p-4 rounded-xl text-xs font-bold flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+               {message.text}
+            </div>
+          )}
+
+          {/* Bouton d'action */}
           <button 
-            type="submit"
-            disabled={isLoading} 
-            className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
+            type="submit" 
+            disabled={loading}
+            className="w-full py-4 bg-[#1a1a1a] hover:bg-red-600 text-white font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-gray-200 flex items-center justify-center gap-2"
           >
-            {isLoading ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <>Entrer sur le terrain <LogIn size={18}/></>
+            {loading ? <Loader2 className="animate-spin" /> : (
+              isResetMode ? "Envoyer le lien" : "Se connecter"
             )}
           </button>
+
+          {/* Bouton Retour (Mode Reset uniquement) */}
+          {isResetMode && (
+            <button 
+              type="button"
+              onClick={() => { setIsResetMode(false); setMessage(null); }}
+              className="w-full py-2 text-gray-400 hover:text-[#1a1a1a] font-bold uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 transition-colors"
+            >
+              <ArrowLeft size={12} /> Retour à la connexion
+            </button>
+          )}
+
         </form>
 
         {/* Footer */}
-        <div className="mt-8 pt-8 border-t border-gray-100 text-center">
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">
-            Nouveau sur Gesteam ?{" "}
-            <button 
-              type="button"
-              onClick={() => router.push('/register')} 
-              className="text-[#ff9d00] hover:underline font-black"
-            >
-              Créer un compte
-            </button>
-          </p>
+        <div className="mt-8 text-center pt-8 border-t border-gray-100">
+           <p className="text-gray-400 text-xs font-medium">
+             Pas encore de compte ? <Link href="/register" className="text-[#1a1a1a] font-black hover:text-red-600 transition-colors">Créer un club</Link>
+           </p>
         </div>
+
       </div>
     </div>
   );
