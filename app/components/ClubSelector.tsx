@@ -1,116 +1,108 @@
 "use client";
-import React, { useState, useMemo } from 'react';
-import { Check, ChevronsUpDown, Search, Loader2, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Search, ChevronDown, Loader2 } from 'lucide-react';
 
-interface Club {
-  id: string;
-  nom: string;
-  ville: string;
-  cp: string;
-}
-
-interface ClubSelectorProps {
-  onSelect: (club: Club) => void;
-  defaultValue?: string;
-}
-
-export default function ClubSelector({ onSelect, defaultValue }: ClubSelectorProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
-  const [clubsList, setClubsList] = useState<Club[]>([]);
+export default function ClubSelector({ onSelect }: { onSelect: (club: any) => void }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredClubs, setFilteredClubs] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Charge le fichier JSON uniquement au premier clic
-  const loadClubs = async () => {
-    if (clubsList.length > 0) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/clubs_fff.json');
-      const data = await res.json();
-      // Tri par nom pour être propre
-      setClubsList(data.sort((a: Club, b: Club) => a.nom.localeCompare(b.nom)));
-    } catch (e) {
-      console.error("Erreur chargement clubs", e);
-    } finally {
-      setLoading(false);
+  // Fonction de recherche côté serveur
+  const searchClubs = async (term: string) => {
+    if (term.length < 2) {
+      setFilteredClubs([]);
+      return;
     }
+
+    setLoading(true);
+    // On recherche dans le nom officiel, le nom court ET la ville
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('id, name, nom_usage, ville')
+      .or(`name.ilike.%${term}%,nom_usage.ilike.%${term}%,ville.ilike.%${term}%`)
+      .limit(30); // On limite à 30 pour l'affichage
+
+    if (error) {
+      console.error("Erreur de recherche:", error.message);
+    } else {
+      setFilteredClubs(data || []);
+    }
+    setLoading(false);
   };
 
-  const filteredClubs = useMemo(() => {
-    if (!search) return clubsList.slice(0, 10); // Affiche 10 par défaut
+  // Déclenche la recherche quand on tape (avec un petit délai pour ne pas saturer)
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (isOpen) searchClubs(searchTerm);
+    }, 300);
 
-    // Recherche insensible à la casse et aux accents
-    const term = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
-    return clubsList.filter(c => {
-      const nom = c.nom?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
-      const ville = c.ville?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
-      return nom.includes(term) || ville.includes(term);
-    }).slice(0, 50); // Limite à 50 résultats
-  }, [search, clubsList]);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, isOpen]);
 
   return (
-    <div className="relative font-sans not-italic">
-      <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest italic">
-        Club Officiel
-      </label>
-      
-      {/* Bouton déclencheur */}
+    <div className="relative w-full italic font-black uppercase" ref={wrapperRef}>
       <button
         type="button"
-        onClick={() => { setOpen(!open); if (!open) loadClubs(); }}
-        className="w-full p-4 flex items-center justify-between bg-white border border-gray-100 rounded-2xl text-sm font-bold text-left hover:border-[#ff9d00] transition-all shadow-sm"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-white border border-gray-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:border-[#ff9d00]/30 transition-all"
       >
-        <span className={selectedClub ? "text-[#1a1a1a]" : "text-gray-400"}>
-          {selectedClub ? selectedClub.nom : (defaultValue || "Rechercher votre club...")}
-        </span>
-        <ChevronsUpDown className="h-4 w-4 opacity-50" />
+        {selectedClub ? (
+          <div className="text-left">
+            <span className="block text-black text-sm">{selectedClub.nom_usage || selectedClub.name}</span>
+            <span className="text-gray-400 text-[10px] font-bold not-italic">{selectedClub.ville}</span>
+          </div>
+        ) : (
+          <span className="text-gray-300 text-sm italic">RECHERCHER VOTRE VILLE OU CLUB...</span>
+        )}
+        <ChevronDown size={20} className={`text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Liste déroulante */}
-      {open && (
-        <div className="absolute mt-2 w-full bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          
-          {/* Champ de recherche interne */}
-          <div className="p-3 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
-             <Search size={16} className="text-[#ff9d00]" />
-             <input
-               autoFocus
-               className="w-full bg-transparent outline-none text-sm font-bold text-[#1a1a1a] placeholder:font-normal placeholder:text-gray-400"
-               placeholder="Tapez le nom ou la ville..."
-               onChange={(e) => setSearch(e.target.value)}
-             />
+      {isOpen && (
+        <div className="absolute z-[100] w-full mt-3 bg-white rounded-[2rem] shadow-2xl border border-gray-50 overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="p-4 bg-gray-50/50">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+              <input
+                autoFocus
+                className="w-full p-4 pl-12 rounded-2xl bg-white border-none outline-none text-[10px] font-black italic shadow-inner"
+                placeholder="TAPEZ LE NOM DE VOTRE VILLE "
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="max-h-60 overflow-y-auto p-1">
+          <div className="max-h-72 overflow-y-auto">
             {loading ? (
-              <div className="p-6 text-center text-gray-400 flex flex-col items-center gap-2">
-                <Loader2 className="animate-spin text-[#ff9d00]" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Chargement de la base FFF...</span>
-              </div>
-            ) : filteredClubs.length === 0 ? (
-              <div className="p-4 text-center text-xs text-gray-400 font-bold">Aucun club trouvé</div>
-            ) : (
+              <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-[#ff9d00]" size={32} /></div>
+            ) : filteredClubs.length > 0 ? (
               filteredClubs.map((club) => (
-                <div
+                <button
                   key={club.id}
+                  type="button"
                   onClick={() => {
                     setSelectedClub(club);
+                    setIsOpen(false);
                     onSelect(club);
-                    setOpen(false);
                   }}
-                  className="p-3 rounded-xl hover:bg-[#1a1a1a] hover:text-white cursor-pointer flex justify-between items-center group transition-colors mb-1"
+                  className="w-full text-left p-5 hover:bg-gray-50 flex flex-col border-b border-gray-50 last:border-none group transition-colors"
                 >
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-tight">{club.nom}</div>
-                    <div className="text-[9px] font-bold text-gray-400 group-hover:text-white/60 flex items-center gap-1 mt-0.5">
-                      <MapPin size={8} /> {club.ville} ({club.cp})
-                    </div>
-                  </div>
-                  {selectedClub?.id === club.id && <Check size={14} className="text-[#ff9d00]" />}
-                </div>
+                  <span className="text-black text-sm font-black group-hover:text-[#ff9d00]">
+                    {club.nom_usage || club.name}
+                  </span>
+                  <span className="text-gray-400 text-[10px] font-bold not-italic lowercase tracking-widest mt-1">
+                    {club.ville}
+                  </span>
+                </button>
               ))
+            ) : (
+              <div className="p-10 text-center text-gray-300 text-[10px]">
+                {searchTerm.length < 2 ? "TAPEZ AU MOINS 2 CARACTÈRES" : "AUCUN CLUB TROUVÉ"}
+              </div>
             )}
           </div>
         </div>

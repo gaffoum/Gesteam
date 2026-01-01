@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import DashboardLayout from '@/app/components/layout/DashboardLayout';
 import { supabase } from '@/lib/supabase';
 import { Link, Copy, Check, UserPlus, Timer } from 'lucide-react';
 

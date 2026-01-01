@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '../../components/layout/DashboardLayout';
+import DashboardLayout from '../components/layout/DashboardLayout';
 import { 
   Plus, ChevronRight, Home, Plane, TrendingUp, Award
 } from 'lucide-react';

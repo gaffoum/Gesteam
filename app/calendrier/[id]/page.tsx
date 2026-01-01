@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
+import DashboardLayout from '../../components/layout/DashboardLayout';
 import { 
   ChevronLeft, Users, Layout, FileText, MapPin, 
   CheckCircle2, Plus, X, Search, Loader2, AlertCircle

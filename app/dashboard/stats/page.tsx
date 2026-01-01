@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import DashboardLayout from '@/app/components/layout/DashboardLayout';
 import { BarChart3, TrendingUp, PieChart, Activity } from 'lucide-react';
 
 export default function StatsPage() {

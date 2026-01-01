@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import DashboardLayout from '../../components/layout/DashboardLayout';
+import DashboardLayout from '../components/layout/DashboardLayout';
 import { motion } from 'framer-motion';
 import { Users, RotateCcw, MessageCircle, Send, Camera } from 'lucide-react';
 import html2canvas from 'html2canvas';

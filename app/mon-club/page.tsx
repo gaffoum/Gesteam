@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import DashboardLayout from '../../components/layout/DashboardLayout';
+import DashboardLayout from '../components/layout/DashboardLayout';
 // Importation de l'icône manquante
 import { Trophy } from 'lucide-react';
 

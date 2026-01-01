@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import DashboardLayout from '../../components/layout/DashboardLayout';
+import DashboardLayout from '../components/layout/DashboardLayout';
 import { Save, Trash2, Users, ChevronDown, Layout, X, Loader2, Camera, RefreshCcw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import html2canvas from 'html2canvas';

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import DashboardLayout from '@/app/components/layout/DashboardLayout';
 import { supabase } from '@/lib/supabase';
 import { UserPlus, Shield, Trash2, CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
