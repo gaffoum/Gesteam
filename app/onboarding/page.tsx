@@ -9,19 +9,53 @@ import {
   CheckCircle,
   MapPin,
   Hash,
-  AlertTriangle
+  AlertTriangle,
+  Mail,
+  X
 } from 'lucide-react';
 import ClubSelector from '@/app/components/ClubSelector';
+
+// --- COMPOSANT MODAL GESTEAM PRO LIGHT AVEC ANIMATION ---
+const AdminContactModal = ({ isOpen, onClose, adminEmail, clubName }: { isOpen: boolean, onClose: () => void, adminEmail: string, clubName: string }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border border-gray-100 italic relative overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="absolute top-0 right-0 p-6">
+          <button onClick={onClose} className="text-gray-300 hover:text-black transition-colors"><X size={24} /></button>
+        </div>
+        <div className="w-16 h-16 bg-[#ff9d00]/10 rounded-2xl flex items-center justify-center mb-6 animate-bounce">
+          <Mail size={32} className="text-[#ff9d00]" />
+        </div>
+        <h3 className="text-2xl font-black uppercase tracking-tighter mb-4 text-[#1a1a1a]">Club déjà <span className="text-[#ff9d00]">Actif</span></h3>
+        <p className="text-xs font-bold text-gray-500 uppercase leading-relaxed mb-8 not-italic">
+          Le club <span className="text-black font-black">{clubName}</span> est déjà créé sur Gesteam. 
+          Veuillez contacter le coach principal pour obtenir vos accès.
+        </p>
+        <div className="bg-gray-50 p-6 rounded-2xl mb-8 border border-gray-100">
+          <p className="text-[10px] text-gray-400 font-black uppercase mb-2 tracking-widest">E-mail du coach principal :</p>
+          <p className="text-sm font-black text-black break-all selection:bg-[#ff9d00] selection:text-white lowercase">{adminEmail}</p>
+        </div>
+        <button 
+          onClick={onClose}
+          className="w-full bg-black text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] transition-all shadow-lg active:scale-95"
+        >
+          J'ai compris
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // --- COMPOSANT INPUT COULEUR SÉCURISÉ ---
 const ColorInput = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => (
   <div>
     <label className="block text-[9px] font-bold uppercase text-gray-400 mb-2 tracking-widest">{label}</label>
-    <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 focus-within:border-[#ff9d00] focus-within:ring-1 focus-within:ring-[#ff9d00]/20 transition-all">
+    <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 focus-within:border-[#ff9d00] transition-all shadow-sm">
       <input
         type="color"
         className="w-10 h-10 rounded-lg cursor-pointer border-none bg-transparent p-0"
-        value={value.length === 7 ? value : '#000000'} // Fallback visuel si hex invalide
+        value={value.length === 7 ? value : '#000000'}
         onChange={(e) => onChange(e.target.value)}
       />
       <div className="flex-1 flex items-center border-l border-gray-200 pl-3">
@@ -32,12 +66,10 @@ const ColorInput = ({ label, value, onChange }: { label: string, value: string, 
           className="w-full bg-transparent border-none outline-none text-xs font-black text-[#1a1a1a] uppercase p-0 placeholder-gray-300"
           value={value.replace('#', '')}
           onChange={(e) => {
-             // On autorise la saisie mais on nettoie les caractères interdits
-             const clean = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
-             onChange(`#${clean}`);
+              const clean = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+              onChange(`#${clean}`);
           }}
           onBlur={() => {
-            // Sécurité : Si l'utilisateur sort du champ avec un code incomplet (ex: #A1), on remet du noir ou blanc
             if (value.length < 7) onChange('#000000');
           }}
         />
@@ -51,8 +83,11 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
 
   const [formData, setFormData] = useState({
+    id_club: '',
     nom: '',
     ville: '',
     code_postal: '',
@@ -74,13 +109,13 @@ export default function OnboardingPage() {
   const handleClubSelect = (club: any) => {
     setFormData(prev => ({
       ...prev,
-      nom: club.nom,
+      id_club: club.id,
+      nom: club.nom_usage || club.name,
       ville: club.ville,
-      code_postal: club.cp
+      code_postal: club.code_postal || ''
     }));
   };
 
-  // Fonction pour valider qu'un hex est correct (# + 6 caractères)
   const isValidHex = (hex: string) => /^#[0-9A-F]{6}$/i.test(hex);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,8 +123,6 @@ export default function OnboardingPage() {
     setErrorMsg("");
 
     if (!formData.nom) return setErrorMsg("Veuillez sélectionner un club.");
-    
-    // Validation des couleurs avant envoi
     if (!isValidHex(formData.couleur_principale) || !isValidHex(formData.couleur_secondaire) || !isValidHex(formData.couleur_tertiaire)) {
       return setErrorMsg("Les codes couleurs doivent être complets (ex: #FFFFFF)");
     }
@@ -97,38 +130,54 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      // 1. Création du club
-      const { data: newClub, error: clubError } = await supabase
+      // Vérification si le club appartient déjà à un coach
+      const { data: existingAdmin, error: searchError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('club_id', formData.id_club)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (existingAdmin) {
+        setAdminEmail(existingAdmin.email || "Le coach principal");
+        setShowModal(true);
+        setLoading(false);
+        return;
+      }
+
+      // Mise à jour des couleurs et infos du club sélectionné
+      const { error: clubError } = await supabase
         .from('clubs')
-        .insert([
-          {
-            name: formData.nom,
-            ville: formData.ville,
-            code_postal: formData.code_postal,
-            primary_color: formData.couleur_principale,
-            secondary_color: formData.couleur_secondaire,
-            tertiary_color: formData.couleur_tertiaire 
-          }
-        ])
-        .select()
-        .single();
+        .update({
+          primary_color: formData.couleur_principale,
+          secondary_color: formData.couleur_secondaire,
+          tertiary_color: formData.couleur_tertiaire,
+          code_postal: formData.code_postal,
+          status: 'active'
+        })
+        .eq('id', formData.id_club);
 
       if (clubError) throw clubError;
 
-      // 2. Liaison User -> Club
+      // Liaison du profil utilisateur au club
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ club_id: newClub.id, role: 'admin' })
+        .update({ 
+          club_id: formData.id_club, 
+          role: 'admin',
+          onboarding_completed: true,
+          email: user.email 
+        })
         .eq('id', user.id);
 
       if (profileError) throw profileError;
 
       router.push('/dashboard');
+      router.refresh();
 
     } catch (err: any) {
       console.error("Erreur Onboarding:", err);
-      // Message d'erreur plus clair pour toi
-      setErrorMsg(err.message || "Erreur lors de l'enregistrement. Vérifiez votre base de données.");
+      setErrorMsg(err.message || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
     }
@@ -136,6 +185,13 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-6 italic">
+      <AdminContactModal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)} 
+        adminEmail={adminEmail} 
+        clubName={formData.nom} 
+      />
+
       <div className="max-w-4xl w-full bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-100">
         
         {/* Partie Gauche */}
@@ -152,9 +208,9 @@ export default function OnboardingPage() {
           
           <div className="relative z-10 mt-12">
             <div className="flex items-center gap-3 mb-6">
-               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg" style={{ backgroundColor: isValidHex(formData.couleur_principale) ? formData.couleur_principale : '#000' }}></div>
-               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg -ml-4" style={{ backgroundColor: isValidHex(formData.couleur_secondaire) ? formData.couleur_secondaire : '#000' }}></div>
-               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg -ml-4" style={{ backgroundColor: isValidHex(formData.couleur_tertiaire) ? formData.couleur_tertiaire : '#000' }}></div>
+               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg transition-transform hover:scale-110" style={{ backgroundColor: isValidHex(formData.couleur_principale) ? formData.couleur_principale : '#000' }}></div>
+               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg -ml-4 transition-transform hover:scale-110" style={{ backgroundColor: isValidHex(formData.couleur_secondaire) ? formData.couleur_secondaire : '#000' }}></div>
+               <div className="w-8 h-8 rounded-full border-2 border-white/20 shadow-lg -ml-4 transition-transform hover:scale-110" style={{ backgroundColor: isValidHex(formData.couleur_tertiaire) ? formData.couleur_tertiaire : '#000' }}></div>
             </div>
             <p className="text-[10px] uppercase font-bold text-gray-500">Aperçu Palette</p>
           </div>
@@ -168,13 +224,12 @@ export default function OnboardingPage() {
           </h2>
 
           {errorMsg && (
-            <div className="mb-6 p-4 bg-red-50 text-red-500 rounded-2xl text-xs font-bold flex items-center gap-2 not-italic">
+            <div className="mb-6 p-4 bg-red-50 text-red-500 rounded-2xl text-xs font-bold flex items-center gap-2 not-italic animate-in slide-in-from-top-4 duration-300">
               <AlertTriangle size={16} /> {errorMsg}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-8 not-italic">
-            
             <div className="space-y-4">
               <ClubSelector onSelect={handleClubSelect} />
               
@@ -184,7 +239,7 @@ export default function OnboardingPage() {
                   <div>
                     <p className="text-xs font-black uppercase text-green-800 tracking-tight">{formData.nom}</p>
                     <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide flex items-center gap-1">
-                      <MapPin size={10} /> {formData.ville} ({formData.code_postal})
+                      <MapPin size={10} /> {formData.ville} {formData.code_postal && `(${formData.code_postal})`}
                     </p>
                   </div>
                 </div>
@@ -194,10 +249,7 @@ export default function OnboardingPage() {
             <div className="h-px bg-gray-100 w-full"></div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest italic">
-                Charte Graphique (Hexadécimal)
-              </label>
-              
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest italic">Charte Graphique (Hexadécimal)</label>
               <div className="grid grid-cols-3 gap-4">
                 <ColorInput label="Principale" value={formData.couleur_principale} onChange={c => setFormData({...formData, couleur_principale: c})} />
                 <ColorInput label="Secondaire" value={formData.couleur_secondaire} onChange={c => setFormData({...formData, couleur_secondaire: c})} />
@@ -209,12 +261,11 @@ export default function OnboardingPage() {
               <button 
                 type="submit" 
                 disabled={loading || !formData.nom}
-                className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl hover:-translate-y-1"
+                className="w-full bg-[#1a1a1a] text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#ff9d00] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-[0.98]"
               >
-                {loading ? <Loader2 className="animate-spin" /> : <>Valider la configuration <ArrowRight size={16} /></>}
+                {loading ? <Loader2 className="animate-spin" /> : <>CRÉER LE CLUB <ArrowRight size={16} /></>}
               </button>
             </div>
-
           </form>
         </div>
       </div>
