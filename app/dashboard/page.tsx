@@ -168,37 +168,48 @@ export default function DashboardPage() {
           </Link>
         </header>
 
-        {/* GRILLE DE STATS */}
+        {/* GRILLE DE STATS (MODIFIÉE AVEC LIENS) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 not-italic">
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer">
-            <div>
-              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Effectif</p>
-              <h3 className="text-5xl font-black tracking-tighter">{stats.joueurs}</h3>
+          
+          {/* CARTE JOUEURS */}
+          <Link href="/dashboard/joueurs">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+              <div>
+                <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Effectif</p>
+                <h3 className="text-5xl font-black tracking-tighter">{stats.joueurs}</h3>
+              </div>
+              <div className="p-5 bg-blue-50 text-blue-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
+                <Users size={28} />
+              </div>
             </div>
-            <div className="p-5 bg-blue-50 text-blue-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
-              <Users size={28} />
-            </div>
-          </div>
+          </Link>
 
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer">
-            <div>
-              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Catégories</p>
-              <h3 className="text-5xl font-black tracking-tighter">{stats.equipes}</h3>
+          {/* CARTE ÉQUIPES */}
+          <Link href="/dashboard/equipes">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+              <div>
+                <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Catégories</p>
+                <h3 className="text-5xl font-black tracking-tighter">{stats.equipes}</h3>
+              </div>
+              <div className="p-5 bg-purple-50 text-purple-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
+                <Shield size={28} />
+              </div>
             </div>
-            <div className="p-5 bg-purple-50 text-purple-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
-              <Shield size={28} />
-            </div>
-          </div>
+          </Link>
 
-          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer">
-            <div>
-              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Calendrier</p>
-              <h3 className="text-5xl font-black tracking-tighter">{stats.matchs}</h3>
+          {/* CARTE MATCHS */}
+          <Link href="/dashboard/matchs">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+              <div>
+                <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Calendrier</p>
+                <h3 className="text-5xl font-black tracking-tighter">{stats.matchs}</h3>
+              </div>
+              <div className="p-5 bg-green-50 text-green-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
+                <CalendarIcon size={28} />
+              </div>
             </div>
-            <div className="p-5 bg-green-50 text-green-500 rounded-2xl group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
-              <CalendarIcon size={28} />
-            </div>
-          </div>
+          </Link>
+
         </div>
 
         {/* SECTION INFOS BAS DE PAGE */}
