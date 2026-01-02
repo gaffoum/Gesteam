@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 Salut, <span className="text-[#ff9d00]">{adminData?.nom || 'Coach'}</span> !
               </h1>
               <p className="text-gray-400 font-bold not-italic uppercase text-xs tracking-widest mt-3 italic">
-                Gestion de {adminData?.clubs?.name || 'votre club'}
+                Gestion de {adminData?.clubs?.nom_usage || 'votre club'}
               </p>
             </div>
           </div>
