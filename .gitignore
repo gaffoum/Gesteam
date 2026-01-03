@@ -27,3 +27,4 @@ scripts/*.csv
 *.xlsx
 /data
 /imports
+.env.local

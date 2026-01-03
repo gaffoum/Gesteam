@@ -15,7 +15,8 @@ import {
   Shield,
   Menu, 
   X,
-  ArrowUpRight 
+  ArrowUpRight,
+  UserCog // NOUVELLE ICÔNE POUR LE STAFF
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -130,6 +131,10 @@ export default function DashboardPage() {
           <Link href="/dashboard/matchs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Trophy size={18} /> Matchs
           </Link>
+          {/* NOUVEAU LIEN STAFF AJOUTÉ ICI */}
+          <Link href="/dashboard/staff" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
+            <UserCog size={18} /> Staff
+          </Link>
         </nav>
 
         <div className="pt-8 border-t border-white/10">
@@ -168,7 +173,7 @@ export default function DashboardPage() {
           </Link>
         </header>
 
-        {/* GRILLE DE STATS (MODIFIÉE AVEC LIENS) */}
+        {/* GRILLE DE STATS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 not-italic">
           
           {/* CARTE JOUEURS */}
