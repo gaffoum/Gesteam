@@ -10,13 +10,13 @@ import {
   LogOut, 
   Loader2, 
   Trophy, 
-  ChevronRight, 
   Activity, 
   Shield,
   Menu, 
   X,
   ArrowUpRight,
-  UserCog // NOUVELLE ICÔNE POUR LE STAFF
+  UserCog, // Icône pour le Staff
+  Plus
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,7 +44,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*, clubs(*)')
         .eq('id', session.user.id)
@@ -58,6 +58,7 @@ export default function DashboardPage() {
       setAdminData(profile);
 
       if (profile?.club_id) {
+        // Récupération des compteurs pour les stats
         const [joueursRes, equipesRes, matchsRes] = await Promise.all([
           supabase.from('joueurs').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
           supabase.from('equipes').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
@@ -114,24 +115,29 @@ export default function DashboardPage() {
             Gesteam <span className="text-[#ff9d00]">Pro</span>
           </h2>
           <p className="text-[9px] font-bold uppercase opacity-40 mt-1 tracking-[0.3em] italic">
-            {adminData?.clubs?.name || 'Club Manager'}
+            {adminData?.clubs?.nom || 'Club Manager'}
           </p>
         </div>
 
         <nav className="space-y-4 flex-1 not-italic">
+          {/* LIEN DASHBOARD ACTIF */}
           <Link href="/dashboard" className="p-4 bg-[#ff9d00] rounded-2xl flex items-center gap-3 text-[#1a1a1a] font-black uppercase text-xs shadow-lg shadow-[#ff9d00]/20 transition-all">
             <LayoutDashboard size={18} /> Vue d'ensemble
           </Link>
+          
           <Link href="/dashboard/joueurs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Users size={18} /> Effectifs
           </Link>
+          
           <Link href="/dashboard/equipes" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Shield size={18} /> Équipes
           </Link>
+          
           <Link href="/dashboard/matchs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Trophy size={18} /> Matchs
           </Link>
-          {/* NOUVEAU LIEN STAFF AJOUTÉ ICI */}
+
+          {/* BOUTON STAFF DANS LA SIDEBAR */}
           <Link href="/dashboard/staff" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <UserCog size={18} /> Staff
           </Link>
@@ -173,12 +179,12 @@ export default function DashboardPage() {
           </Link>
         </header>
 
-        {/* GRILLE DE STATS */}
+        {/* GRILLE DE STATS (LES CARTES CLIQUABLES) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 not-italic">
           
-          {/* CARTE JOUEURS */}
+          {/* 1. CARTE EFFECTIF -> JOUEURS */}
           <Link href="/dashboard/joueurs">
-            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
                 <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Effectif</p>
                 <h3 className="text-5xl font-black tracking-tighter">{stats.joueurs}</h3>
@@ -189,9 +195,9 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* CARTE ÉQUIPES */}
+          {/* 2. CARTE CATÉGORIES -> ÉQUIPES */}
           <Link href="/dashboard/equipes">
-            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
                 <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Catégories</p>
                 <h3 className="text-5xl font-black tracking-tighter">{stats.equipes}</h3>
@@ -202,9 +208,9 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* CARTE MATCHS */}
+          {/* 3. CARTE CALENDRIER -> MATCHS */}
           <Link href="/dashboard/matchs">
-            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full">
+            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
                 <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest mb-2 italic">Calendrier</p>
                 <h3 className="text-5xl font-black tracking-tighter">{stats.matchs}</h3>
@@ -248,7 +254,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* OVERLAY MOBILE CORRIGÉ */}
+      {/* OVERLAY MOBILE */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden" 
@@ -258,10 +264,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-const Plus = ({ size }: { size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19"></line>
-    <line x1="5" y1="12" x2="19" y2="12"></line>
-  </svg>
-);
