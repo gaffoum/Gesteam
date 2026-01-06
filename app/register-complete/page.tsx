@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react'; // Ajout de Suspense
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
@@ -9,7 +9,8 @@ import {
   Trophy, Mail 
 } from 'lucide-react';
 
-export default function RegisterCompletePage() {
+// 1. On renomme la fonction principale en "RegisterCompleteContent"
+function RegisterCompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -352,5 +353,18 @@ export default function RegisterCompletePage() {
         </form>
       </div>
     </div>
+  );
+}
+
+// 2. Le nouvel export default qui corrige le bug
+export default function RegisterCompletePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]">
+        <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
+      </div>
+    }>
+      <RegisterCompleteContent />
+    </Suspense>
   );
 }

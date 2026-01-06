@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react'; // Ajout de Suspense
 import { supabase } from '@/lib/supabase'; 
 import { 
   Plus, 
@@ -19,7 +19,8 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function JoueursPage() {
+// 1. On renomme votre fonction principale en "JoueursContent" (ce n'est plus l'export default)
+function JoueursContent() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [joueurs, setJoueurs] = useState<any[]>([]);
@@ -315,9 +316,9 @@ export default function JoueursPage() {
                         </div>
                       </td>
                       <td className="px-10 py-6">
-                         <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg text-[9px] font-black">
+                          <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg text-[9px] font-black">
                            {joueur.poste || '-'}
-                         </span>
+                          </span>
                       </td>
                       <td className="px-10 py-6 text-gray-400 text-[10px] font-black">
                         {joueur.licence || 'N/A'}
@@ -348,5 +349,18 @@ export default function JoueursPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// 2. Le nouvel export default qui corrige le bug
+export default function JoueursPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]">
+        <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
+      </div>
+    }>
+      <JoueursContent />
+    </Suspense>
   );
 }
