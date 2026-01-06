@@ -4,27 +4,33 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Trophy, 
-  ArrowLeft, Loader2, ChevronDown
+  ArrowLeft, Loader2, ChevronDown, Edit2
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-// --- IMPORTS DES NOUVEAUX COMPOSANTS ---
-import LiveStandings from '@/app/components/LiveStandings';
+// Imports composants
+import LiveStandings from '../../components/LiveStandings';
 import TeamPositionChart from '../../components/TeamPositionChart';
+import ScoreModal from '../../components/ScoreModal';
 
 export default function MatchsPageDynamique() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  
-  // Données existantes
   const [matchs, setMatchs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // NOUVEAUX ÉTATS POUR LE CLASSEMENT FFF
+  // Stats internes (pour usage futur ou graphique)
+  const [stats, setStats] = useState({ standings: [], history: [] });
+
+  // États pour le sélecteur d'équipe (Classement FFF)
   const [teams, setTeams] = useState<any[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+
+  // --- ÉTATS POUR LA MODALE SCORE ---
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
 
   useEffect(() => {
     fetchMatchsAndCalculate();
@@ -36,7 +42,6 @@ export default function MatchsPageDynamique() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return router.push('/login');
 
-      // 0. Récupérer le club_id du profil connecté
       const { data: profile } = await supabase
         .from('profiles')
         .select('club_id')
@@ -45,7 +50,7 @@ export default function MatchsPageDynamique() {
 
       if (profile?.club_id) {
         
-        // --- NOUVEAU : Récupérer les ÉQUIPES pour le sélecteur ---
+        // 1. Récupérer les équipes
         const { data: teamsData } = await supabase
           .from('equipes')
           .select('id, nom, categorie')
@@ -54,24 +59,58 @@ export default function MatchsPageDynamique() {
 
         if (teamsData && teamsData.length > 0) {
           setTeams(teamsData);
-          // Sélectionner la première équipe par défaut pour afficher son classement
-          setSelectedTeamId(teamsData[0].id);
+          // On ne change la sélection que si elle est vide (pour éviter reset si refresh)
+          if (!selectedTeamId) setSelectedTeamId(teamsData[0].id);
         }
 
-        // 1. Récupération des matchs (Votre logique existante)
+        // 2. Récupérer les matchs
         const { data: matchesData, error } = await supabase
           .from('matchs')
           .select('*, equipes(nom, categorie)')
-          .eq('club_id', profile.club_id) // Sécurité : on filtre par club
+          .eq('club_id', profile.club_id)
           .order('date_heure', { ascending: true });
 
         if (error) throw error;
 
-        // (Votre logique de calcul local est conservée ici si besoin pour d'autres stats, 
-        // mais l'affichage principal gauche utilisera désormais les données FFF)
-        setMatchs(matchesData || []);
-      }
+        // 3. Calculs Stats (Interne)
+        const clubsMap: any = {};
+        const history: any[] = [];
+        let currentPoints = 0;
 
+        matchesData?.forEach((m, index) => {
+          if (m.statut === 'termine') {
+            const home = m.equipes?.categorie || m.equipes?.nom || 'MON ÉQUIPE';
+            const away = m.adversaire;
+            
+            if (!clubsMap[home]) clubsMap[home] = { nom: home, pts: 0, j: 0 };
+            if (!clubsMap[away]) clubsMap[away] = { nom: away, pts: 0, j: 0 };
+
+            clubsMap[home].j += 1;
+            clubsMap[away].j += 1;
+
+            if (m.score_home > m.score_away) {
+              clubsMap[home].pts += 3;
+            } else if (m.score_home < m.score_away) {
+              clubsMap[away].pts += 3;
+            } else {
+              clubsMap[home].pts += 1;
+              clubsMap[away].pts += 1;
+            }
+
+            if (m.equipes?.id) {
+              currentPoints = clubsMap[home].pts;
+              history.push({ day: `J${history.length + 1}`, pts: currentPoints });
+            }
+          }
+        });
+
+        const sortedStandings = Object.values(clubsMap)
+          .sort((a: any, b: any) => b.pts - a.pts)
+          .map((team: any, idx) => ({ ...team, pos: idx + 1 }));
+
+        setMatchs(matchesData || []);
+        setStats({ standings: sortedStandings as any, history: history as any });
+      }
     } catch (err) {
       console.error("Erreur:", err);
     } finally {
@@ -79,9 +118,16 @@ export default function MatchsPageDynamique() {
     }
   };
 
+  // --- FONCTION POUR OUVRIR LA MODALE ---
+  const openScoreModal = (match: any) => {
+    setSelectedMatch(match);
+    setIsScoreModalOpen(true);
+  };
+
   const filteredMatchs = matchs.filter(m => 
     (m.adversaire?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (m.equipes?.nom?.toLowerCase().includes(searchTerm.toLowerCase()))
+    (m.equipes?.nom?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (m.equipes?.categorie?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (loading) return (
@@ -92,9 +138,18 @@ export default function MatchsPageDynamique() {
 
   return (
     <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
+      
+      {/* --- INTEGRATION DE LA MODALE --- */}
+      <ScoreModal 
+        isOpen={isScoreModalOpen} 
+        match={selectedMatch} 
+        onClose={() => setIsScoreModalOpen(false)}
+        onUpdate={fetchMatchsAndCalculate} // Met à jour le calendrier après validation
+      />
+
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER AVEC FLÈCHE RETOUR */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div className="flex items-center gap-5">
             <Link href="/dashboard" className="p-4 bg-white rounded-2xl shadow-sm text-gray-400 hover:text-[#ff9d00] transition-all border border-gray-100">
@@ -114,11 +169,8 @@ export default function MatchsPageDynamique() {
 
         <div className="flex flex-col lg:flex-row gap-10 items-start">
           
-          {/* --- COLONNE GAUCHE (1/3) : CLASSEMENT + GRAPHIQUE --- */}
-          {/* C'est ici qu'on a intégré les modifications demandées */}
+          {/* GAUCHE : CLASSEMENT + GRAPHIQUE */}
           <div className="w-full lg:w-1/3 space-y-6 sticky top-6 z-10 order-2 lg:order-1">
-            
-            {/* 1. SÉLECTEUR D'ÉQUIPE */}
             <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl">
                <label className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-3 block">
                  Sélectionner une équipe :
@@ -142,11 +194,8 @@ export default function MatchsPageDynamique() {
 
             {selectedTeamId ? (
                <>
-                 {/* 2. GRAPHIQUE DE POSITION */}
                  <TeamPositionChart />
-                 
-                 {/* 3. CLASSEMENT LIVE FFF */}
-                 <div className="h-fit">
+                 <div className="h-[400px]">
                     <LiveStandings equipeId={selectedTeamId} />
                  </div>
                </>
@@ -157,9 +206,8 @@ export default function MatchsPageDynamique() {
             )}
           </div>
 
-          {/* --- COLONNE DROITE (2/3) : LISTE MATCHS --- */}
-          {/* Cette partie reste identique à votre code original */}
-          <div className="flex-1 order-1 lg:order-2">
+          {/* DROITE : LISTE MATCHS */}
+          <div className="flex-1 w-full order-1 lg:order-2">
             <div className="bg-white p-3 rounded-3xl border border-gray-100 mb-8 shadow-sm">
               <div className="relative">
                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={22} />
@@ -174,25 +222,50 @@ export default function MatchsPageDynamique() {
 
             <div className="space-y-5">
               {filteredMatchs.map((match) => (
-                <div key={match.id} className="group bg-white p-6 rounded-[3rem] border border-gray-100 hover:border-[#ff9d00]/40 transition-all flex flex-col md:flex-row items-center justify-between gap-8 shadow-sm relative overflow-hidden">
-                  <div className="flex items-center gap-6 min-w-[170px]">
-                    <div className="w-20 h-20 rounded-[1.5rem] bg-gray-100 text-black flex flex-col items-center justify-center group-hover:bg-black group-hover:text-white transition-all duration-500">
+                <div key={match.id} className="group bg-white p-6 rounded-[3rem] border border-gray-100 hover:border-[#ff9d00]/40 transition-all flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm relative overflow-visible">
+                  
+                  {/* DATE */}
+                  <div className="flex items-center gap-5 min-w-[150px]">
+                    <div className="w-20 h-20 rounded-[1.5rem] bg-black text-white flex flex-col items-center justify-center group-hover:bg-[#ff9d00] transition-all duration-500">
                       <span className="text-3xl leading-none">{format(new Date(match.date_heure), 'dd')}</span>
                       <span className="text-[10px] font-black">{format(new Date(match.date_heure), 'MMM', { locale: fr })}</span>
                     </div>
                     <div className="text-[#ff9d00] font-black text-base italic">{format(new Date(match.date_heure), 'HH:mm')}</div>
                   </div>
 
-                  <div className="flex-1 flex items-center justify-center md:justify-start gap-8">
-                    <span className="font-black text-xl text-black tracking-tighter">{match.equipes?.nom || 'GESTEAM'}</span>
-                    <div className="w-12 h-8 bg-black text-white text-[11px] rounded-lg flex items-center justify-center font-black skew-x-[-15deg]">VS</div>
-                    <span className="font-black text-xl text-black tracking-tighter">{match.adversaire}</span>
+                  {/* EQUIPES (CORRIGÉ : FLEX-1 pour éviter de couper le texte) */}
+                  <div className="flex-1 flex items-center justify-center gap-4 z-10 w-full min-w-0">
+                    {/* NOM EQUIPE */}
+                    <span className="flex-1 font-black text-lg md:text-xl text-black tracking-tighter text-right truncate">
+                        {match.equipes?.categorie || match.equipes?.nom}
+                    </span>
+                    
+                    {/* VS BADGE */}
+                    <div className="w-10 h-8 bg-black text-white text-[10px] rounded-lg flex items-center justify-center font-black skew-x-[-10deg] shrink-0 shadow-md">VS</div>
+                    
+                    {/* ADVERSAIRE */}
+                    <span className="flex-1 font-black text-lg md:text-xl text-black tracking-tighter text-left truncate">
+                        {match.adversaire}
+                    </span>
                   </div>
 
-                  <div className={`px-8 py-4 rounded-2xl font-black text-2xl min-w-[130px] text-center ${match.statut === 'termine' ? 'bg-black text-white' : 'bg-gray-50 text-gray-200'}`}>
-                    {match.statut === 'termine' ? `${match.score_home} - ${match.score_away}` : 'FIXÉ'}
+                  {/* STATUT / BOUTON ACTION (STYLISÉ) */}
+                  <div 
+                    onClick={() => openScoreModal(match)}
+                    className={`cursor-pointer px-6 py-4 rounded-2xl font-black text-xl min-w-[140px] text-center transition-all z-20 flex items-center justify-center gap-2 hover:scale-105 active:scale-95
+                      ${match.statut === 'termine' ? 'bg-gray-100 text-black hover:bg-[#ff9d00] hover:text-white' : 'bg-white text-black border-2 border-gray-100 hover:border-black shadow-sm'}
+                    `}
+                  >
+                    {match.statut === 'termine' ? (
+                        <>{match.score_home} - {match.score_away}</>
+                    ) : (
+                        <span className="text-gray-300 group-hover:text-black flex items-center gap-2 text-sm">
+                          <Edit2 size={14} /> SCORE
+                        </span>
+                    )}
                   </div>
-                  <Trophy className="absolute -right-6 -bottom-6 text-gray-50 group-hover:text-[#ff9d00]/5 transition-all duration-700" size={140} />
+
+                  <Trophy className="absolute -right-6 -bottom-6 text-gray-50 group-hover:text-[#ff9d00]/5 transition-all duration-700 pointer-events-none" size={140} />
                 </div>
               ))}
             </div>
