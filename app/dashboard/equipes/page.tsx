@@ -16,7 +16,9 @@ import {
   CheckCircle2,
   Download, 
   Upload, 
-  ShieldHalf
+  ShieldHalf,
+  Trophy,    // <-- AJOUT
+  Settings   // <-- AJOUT
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -288,7 +290,6 @@ export default function EquipePage() {
                 {/* Affiche le Nom d'Usage récupéré */}
                 {clubName || 'MON CLUB'} <span className="text-[#ff9d00]">ÉQUIPES</span>
               </h1>
-              {/* LIGNE DE SOUS-TITRE SUPPRIMÉE ICI COMME DEMANDÉ */}
             </div>
           </div>
 
@@ -365,33 +366,48 @@ export default function EquipePage() {
           // --- VUE GRILLE ---
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEquipes.map((equipe) => (
-              <div key={equipe.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-[#ff9d00] hover:shadow-xl transition-all group relative overflow-hidden text-center">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="w-14 h-14 bg-black text-[#ff9d00] rounded-2xl flex items-center justify-center text-xl font-black italic shadow-lg">
-                    {equipe.categorie.substring(0,3)}
+              <div key={equipe.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-[#ff9d00] hover:shadow-xl transition-all group relative overflow-hidden text-center flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-14 h-14 bg-black text-[#ff9d00] rounded-2xl flex items-center justify-center text-xl font-black italic shadow-lg">
+                      {equipe.categorie.substring(0,3)}
+                    </div>
+                    <button 
+                      onClick={() => { setItemToDelete({id: equipe.id, category: equipe.categorie}); setShowDeleteModal(true); }} 
+                      className="text-gray-200 hover:text-red-500 p-2 transition-colors z-10"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => { setItemToDelete({id: equipe.id, category: equipe.categorie}); setShowDeleteModal(true); }} 
-                    className="text-gray-200 hover:text-red-500 p-2 transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <h3 className="text-3xl text-black tracking-tighter mb-1 leading-tight italic">
+                    <span className="text-[#ff9d00] block text-[10px] tracking-[0.3em] mb-2 font-bold not-italic">
+                      {clubName}
+                    </span>
+                    {equipe.categorie}
+                  </h3>
+                  <p className="text-gray-400 text-[9px] font-black tracking-widest mb-8 border-b border-gray-50 pb-4">
+                    {equipe.niveau_championnat}
+                  </p>
                 </div>
-                <h3 className="text-3xl text-black tracking-tighter mb-1 leading-tight italic">
-                  <span className="text-[#ff9d00] block text-[10px] tracking-[0.3em] mb-2 font-bold not-italic">
-                    {clubName}
-                  </span>
-                  {equipe.categorie}
-                </h3>
-                <p className="text-gray-400 text-[9px] font-black tracking-widest mb-8 border-b border-gray-50 pb-4">
-                  {equipe.niveau_championnat}
-                </p>
-                <Link 
-                  href={`/dashboard/joueurs?cat=${equipe.id}`} 
-                  className="bg-[#ff9d00]/10 text-[#ff9d00] px-4 py-3 rounded-xl text-[9px] font-black hover:bg-[#ff9d00] hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  GÉRER L'EFFECTIF <ChevronRight size={12} />
-                </Link>
+                
+                {/* ACTIONS */}
+                <div className="space-y-2 z-10 relative">
+                  <Link 
+                    href={`/dashboard/joueurs?cat=${equipe.id}`} 
+                    className="bg-[#ff9d00]/10 text-[#ff9d00] w-full px-4 py-3 rounded-xl text-[9px] font-black hover:bg-[#ff9d00] hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    GÉRER L'EFFECTIF <ChevronRight size={12} />
+                  </Link>
+                  
+                  {/* --- AJOUT BOUTON CONFIGURER POULE --- */}
+                  <Link 
+                    href={`/dashboard/equipes/${equipe.id}/championnat`}
+                    className="bg-gray-50 w-full px-4 py-3 rounded-xl text-[9px] font-black text-gray-400 hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2 group/btn"
+                  >
+                     <Trophy size={12} className="text-[#ff9d00]"/> CONFIGURER POULE <Settings size={12} className="group-hover/btn:rotate-90 transition-transform"/>
+                  </Link>
+                </div>
+
                 <ShieldHalf className="absolute -right-8 -bottom-8 text-gray-50/80 group-hover:text-[#ff9d00]/5 transition-all duration-500 transform group-hover:scale-110" size={160} />
               </div>
             ))}
@@ -427,6 +443,15 @@ export default function EquipePage() {
                       </td>
                       <td className="px-10 py-6 text-right">
                         <div className="flex justify-end gap-2">
+                           {/* --- AJOUT BOUTON CONFIGURER POULE (LISTE) --- */}
+                           <Link 
+                             href={`/dashboard/equipes/${equipe.id}/championnat`}
+                             className="p-3 bg-gray-50 rounded-xl text-gray-400 hover:text-black hover:bg-white border border-transparent hover:border-gray-100 transition-all shadow-sm flex items-center gap-1"
+                             title="Configurer la poule"
+                           >
+                             <Trophy size={16} />
+                           </Link>
+
                            <Link 
                              href={`/dashboard/joueurs?cat=${equipe.id}`} 
                              className="p-3 bg-gray-50 rounded-xl text-gray-400 hover:text-black hover:bg-white border border-transparent hover:border-gray-100 transition-all shadow-sm"

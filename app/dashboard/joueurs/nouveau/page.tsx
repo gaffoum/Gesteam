@@ -1,61 +1,111 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Loader2, UserPlus } from 'lucide-react';
+import { logActivity } from '@/lib/logger';
+import { Loader2, Save, ArrowLeft, User, Mail, Phone, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
-export default function NouveauJoueurPage() {
+export default function NewPlayerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ nom: '', prenom: '', numero: '', poste: 'MILIEU' });
+  const [clubId, setClubId] = useState<string | null>(null);
+  
+  const [formData, setFormData] = useState({
+    nom: '', prenom: '', email: '', telephone: '', 
+    poste: '', date_naissance: ''
+  });
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase.from('profiles').select('club_id').eq('id', session.user.id).single();
+        if (data) setClubId(data.club_id);
+      }
+    };
+    init();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!clubId) return;
     setLoading(true);
-    const { error } = await supabase.from('joueurs').insert([formData]);
-    if (!error) router.push('/dashboard/joueurs');
-    setLoading(false);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // 1. Insertion
+      const { error } = await supabase.from('joueurs').insert({
+        club_id: clubId,
+        ...formData
+      });
+
+      if (error) throw error;
+
+      // 2. Historique
+      if (user) {
+        await logActivity(supabase, clubId, user.id, 'JOUEUR', `Ajout du joueur : ${formData.prenom} ${formData.nom}`);
+      }
+
+      router.push('/dashboard/joueurs');
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de l'ajout.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
+    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans italic text-[#1a1a1a]">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-5 mb-12">
-          <Link href="/dashboard/joueurs" className="p-4 bg-white rounded-2xl shadow-sm text-gray-400 hover:text-[#ff9d00] transition-all border border-gray-100">
-            <ArrowLeft size={24} />
-          </Link>
-          <h1 className="text-4xl tracking-tighter text-black italic">Nouveau <span className="text-[#ff9d00]">Joueur</span></h1>
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/dashboard/joueurs" className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00]"><ArrowLeft size={20}/></Link>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">Nouveau <span className="text-[#ff9d00]">Joueur</span></h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <form onSubmit={handleSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] text-gray-400 mb-2 block">PRÉNOM</label>
-              <input required type="text" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.prenom} onChange={(e) => setFormData({...formData, prenom: e.target.value})} />
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Nom</label>
+              <input required type="text" className="w-full bg-gray-50 p-4 rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#ff9d00]" 
+                onChange={e => setFormData({...formData, nom: e.target.value})} />
             </div>
             <div>
-              <label className="text-[10px] text-gray-400 mb-2 block">NOM</label>
-              <input required type="text" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.nom} onChange={(e) => setFormData({...formData, nom: e.target.value})} />
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Prénom</label>
+              <input required type="text" className="w-full bg-gray-50 p-4 rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#ff9d00]" 
+                onChange={e => setFormData({...formData, prenom: e.target.value})} />
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] text-gray-400 mb-2 block">NUMÉRO</label>
-              <input type="number" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-[#ff9d00]/20" value={formData.numero} onChange={(e) => setFormData({...formData, numero: e.target.value})} />
-            </div>
-            <div>
-              <label className="text-[10px] text-gray-400 mb-2 block">POSTE</label>
-              <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none cursor-pointer" value={formData.poste} onChange={(e) => setFormData({...formData, poste: e.target.value})}>
-                <option value="GARDIEN">GARDIEN</option>
-                <option value="DÉFENSEUR">DÉFENSEUR</option>
-                <option value="MILIEU">MILIEU</option>
-                <option value="ATTAQUANT">ATTAQUANT</option>
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Poste</label>
+              <select className="w-full bg-gray-50 p-4 rounded-xl font-bold outline-none"
+                onChange={e => setFormData({...formData, poste: e.target.value})}>
+                <option value="">Sélectionner...</option>
+                <option value="Gardien">Gardien</option>
+                <option value="Défenseur">Défenseur</option>
+                <option value="Milieu">Milieu</option>
+                <option value="Attaquant">Attaquant</option>
               </select>
             </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Date Naissance</label>
+              <input type="date" className="w-full bg-gray-50 p-4 rounded-xl font-bold outline-none" 
+                onChange={e => setFormData({...formData, date_naissance: e.target.value})} />
+            </div>
           </div>
-          <button disabled={loading} className="w-full bg-[#ff9d00] text-white py-5 rounded-2xl font-black text-xs tracking-[0.3em] shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3">
-            {loading ? <Loader2 className="animate-spin" /> : <><Save size={20} /> ENREGISTRER LE JOUEUR</>}
+
+          <div>
+             <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Email (Optionnel)</label>
+             <input type="email" className="w-full bg-gray-50 p-4 rounded-xl font-bold outline-none" 
+               onChange={e => setFormData({...formData, email: e.target.value})} />
+          </div>
+
+          <button disabled={loading} type="submit" className="w-full bg-black text-white py-5 rounded-xl font-black uppercase tracking-widest hover:bg-[#ff9d00] transition-all flex justify-center gap-2">
+            {loading ? <Loader2 className="animate-spin"/> : <Save size={20}/>} ENREGISTRER
           </button>
         </form>
       </div>

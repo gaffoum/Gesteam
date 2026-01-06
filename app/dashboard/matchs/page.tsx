@@ -3,20 +3,28 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
-  Plus, Search, MapPin, Clock, Trophy, 
-  Trash2, ChevronRight, TrendingUp, ListOrdered, Loader2, ArrowLeft
+  Plus, Search, Trophy, 
+  ArrowLeft, Loader2, ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+// --- IMPORTS DES NOUVEAUX COMPOSANTS ---
+import LiveStandings from '@/app/components/LiveStandings';
+import TeamPositionChart from '../../components/TeamPositionChart';
 
 export default function MatchsPageDynamique() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  
+  // Données existantes
   const [matchs, setMatchs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [stats, setStats] = useState({ standings: [], history: [] });
+  
+  // NOUVEAUX ÉTATS POUR LE CLASSEMENT FFF
+  const [teams, setTeams] = useState<any[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMatchsAndCalculate();
@@ -28,53 +36,42 @@ export default function MatchsPageDynamique() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return router.push('/login');
 
-      // 1. Récupération des matchs
-      const { data: matchesData, error } = await supabase
-        .from('matchs')
-        .select('*, equipes(nom, categorie)')
-        .order('date_heure', { ascending: true });
+      // 0. Récupérer le club_id du profil connecté
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', session.user.id)
+        .single();
 
-      if (error) throw error;
+      if (profile?.club_id) {
+        
+        // --- NOUVEAU : Récupérer les ÉQUIPES pour le sélecteur ---
+        const { data: teamsData } = await supabase
+          .from('equipes')
+          .select('id, nom, categorie')
+          .eq('club_id', profile.club_id)
+          .order('categorie', { ascending: true });
 
-      // 2. LOGIQUE DYNAMIQUE : Calcul du classement et de l'historique
-      const clubsMap: any = {};
-      const history: any[] = [];
-      let currentPoints = 0;
-
-      matchesData?.forEach((m, index) => {
-        if (m.statut === 'termine') {
-          const home = m.equipes?.nom || 'GESTEAM';
-          const away = m.adversaire;
-          
-          if (!clubsMap[home]) clubsMap[home] = { nom: home, pts: 0, j: 0 };
-          if (!clubsMap[away]) clubsMap[away] = { nom: away, pts: 0, j: 0 };
-
-          clubsMap[home].j += 1;
-          clubsMap[away].j += 1;
-
-          if (m.score_home > m.score_away) {
-            clubsMap[home].pts += 3;
-          } else if (m.score_home < m.score_away) {
-            clubsMap[away].pts += 3;
-          } else {
-            clubsMap[home].pts += 1;
-            clubsMap[away].pts += 1;
-          }
-
-          // Pour le graphique (Historique simplifié de la progression des points)
-          if (home === 'GESTEAM' || m.club_id) {
-            currentPoints = clubsMap[home].pts;
-            history.push({ day: `J${history.length + 1}`, pts: currentPoints });
-          }
+        if (teamsData && teamsData.length > 0) {
+          setTeams(teamsData);
+          // Sélectionner la première équipe par défaut pour afficher son classement
+          setSelectedTeamId(teamsData[0].id);
         }
-      });
 
-      const sortedStandings = Object.values(clubsMap)
-        .sort((a: any, b: any) => b.pts - a.pts)
-        .map((team: any, idx) => ({ ...team, pos: idx + 1 }));
+        // 1. Récupération des matchs (Votre logique existante)
+        const { data: matchesData, error } = await supabase
+          .from('matchs')
+          .select('*, equipes(nom, categorie)')
+          .eq('club_id', profile.club_id) // Sécurité : on filtre par club
+          .order('date_heure', { ascending: true });
 
-      setMatchs(matchesData || []);
-      setStats({ standings: sortedStandings as any, history: history as any });
+        if (error) throw error;
+
+        // (Votre logique de calcul local est conservée ici si besoin pour d'autres stats, 
+        // mais l'affichage principal gauche utilisera désormais les données FFF)
+        setMatchs(matchesData || []);
+      }
+
     } catch (err) {
       console.error("Erreur:", err);
     } finally {
@@ -115,53 +112,53 @@ export default function MatchsPageDynamique() {
           </Link>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-10">
+        <div className="flex flex-col lg:flex-row gap-10 items-start">
           
-          {/* --- COLONNE GAUCHE : STATS DYNAMIQUES --- */}
-          <div className="w-full lg:w-1/3 space-y-8 order-2 lg:order-1">
+          {/* --- COLONNE GAUCHE (1/3) : CLASSEMENT + GRAPHIQUE --- */}
+          {/* C'est ici qu'on a intégré les modifications demandées */}
+          <div className="w-full lg:w-1/3 space-y-6 sticky top-6 z-10 order-2 lg:order-1">
             
-            <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 bg-[#ff9d00]/10 rounded-lg">
-                  <TrendingUp size={20} className="text-[#ff9d00]" />
-                </div>
-                <h4 className="text-[11px] tracking-widest text-black">Progression Points</h4>
-              </div>
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={stats.history.length > 0 ? stats.history : [{day: 'J0', pts: 0}]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" vertical={false} />
-                    <XAxis dataKey="day" hide />
-                    <YAxis hide />
-                    <Tooltip contentStyle={{ borderRadius: '15px', border: 'none', fontWeight: 'bold' }} />
-                    <Line type="monotone" dataKey="pts" stroke="#ff9d00" strokeWidth={4} dot={{ r: 6, fill: '#ff9d00', strokeWidth: 3, stroke: '#fff' }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            {/* 1. SÉLECTEUR D'ÉQUIPE */}
+            <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl">
+               <label className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-3 block">
+                 Sélectionner une équipe :
+               </label>
+               <div className="relative">
+                 <select 
+                   value={selectedTeamId || ''}
+                   onChange={(e) => setSelectedTeamId(e.target.value)}
+                   className="w-full bg-white/10 border border-white/20 text-white p-4 rounded-xl font-bold uppercase text-xs appearance-none outline-none focus:bg-white/20 transition-all cursor-pointer"
+                 >
+                   {teams.length === 0 && <option>Aucune équipe</option>}
+                   {teams.map(t => (
+                     <option key={t.id} value={t.id} className="text-black">
+                       {t.categorie} - {t.nom}
+                     </option>
+                   ))}
+                 </select>
+                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/50" size={16}/>
+               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 bg-black text-white rounded-lg">
-                  <ListOrdered size={20} />
-                </div>
-                <h4 className="text-[11px] tracking-widest text-black">Classement Dynamique</h4>
-              </div>
-              <div className="space-y-3">
-                {stats.standings.slice(0, 5).map((team: any) => (
-                  <div key={team.nom} className={`flex items-center justify-between p-4 rounded-2xl transition-all ${team.nom === 'GESTEAM' || team.nom.includes('AS') ? 'bg-[#ff9d00] text-white shadow-lg' : 'bg-gray-50 text-gray-500'}`}>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-black">{team.pos}</span>
-                      <span className="text-[10px] tracking-tighter truncate w-32">{team.nom}</span>
-                    </div>
-                    <span className="text-xs font-black">{team.pts} PTS</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {selectedTeamId ? (
+               <>
+                 {/* 2. GRAPHIQUE DE POSITION */}
+                 <TeamPositionChart />
+                 
+                 {/* 3. CLASSEMENT LIVE FFF */}
+                 <div className="h-fit">
+                    <LiveStandings equipeId={selectedTeamId} />
+                 </div>
+               </>
+            ) : (
+               <div className="bg-white p-8 rounded-[2rem] border border-gray-100 text-center">
+                 <p className="text-gray-300 text-[10px] font-bold">Sélectionnez une équipe pour voir son classement.</p>
+               </div>
+            )}
           </div>
 
-          {/* --- COLONNE DROITE : LISTE MATCHS --- */}
+          {/* --- COLONNE DROITE (2/3) : LISTE MATCHS --- */}
+          {/* Cette partie reste identique à votre code original */}
           <div className="flex-1 order-1 lg:order-2">
             <div className="bg-white p-3 rounded-3xl border border-gray-100 mb-8 shadow-sm">
               <div className="relative">

@@ -6,7 +6,6 @@ import {
   LayoutDashboard, 
   Users, 
   Calendar as CalendarIcon,
-  Settings, 
   LogOut, 
   Loader2, 
   Trophy, 
@@ -15,21 +14,30 @@ import {
   Menu, 
   X,
   ArrowUpRight,
-  UserCog, // Icône pour le Staff
-  Plus
+  UserCog,
+  Plus,
+  UserPlus,
+  Megaphone
 } from 'lucide-react';
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [adminData, setAdminData] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Stats
   const [stats, setStats] = useState({
     joueurs: 0,
     equipes: 0,
     matchs: 0
   });
+
+  // Logs d'activité
+  const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -58,7 +66,7 @@ export default function DashboardPage() {
       setAdminData(profile);
 
       if (profile?.club_id) {
-        // Récupération des compteurs pour les stats
+        // 1. Récupération des compteurs
         const [joueursRes, equipesRes, matchsRes] = await Promise.all([
           supabase.from('joueurs').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
           supabase.from('equipes').select('*', { count: 'exact', head: true }).eq('club_id', profile.club_id),
@@ -70,6 +78,16 @@ export default function DashboardPage() {
           equipes: equipesRes.count || 0,
           matchs: matchsRes.count || 0
         });
+
+        // 2. Récupération des LOGS (Activité récente)
+        const { data: logsData } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .eq('club_id', profile.club_id)
+          .order('created_at', { ascending: false })
+          .limit(5); // On prend les 5 derniers
+
+        if (logsData) setLogs(logsData);
       }
 
     } catch (err) {
@@ -82,6 +100,27 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+  };
+
+  // Helper pour l'icône selon l'action
+  const getActionIcon = (type: string) => {
+    switch(type) {
+      case 'JOUEUR': return <UserPlus size={20} />;
+      case 'MATCH': return <Trophy size={20} />;
+      case 'EQUIPE': return <Shield size={20} />;
+      case 'STAFF': return <UserCog size={20} />;
+      default: return <ArrowUpRight size={20} />;
+    }
+  };
+
+  // Helper pour la couleur selon l'action
+  const getActionColor = (type: string) => {
+    switch(type) {
+      case 'JOUEUR': return 'text-blue-500 bg-blue-50';
+      case 'MATCH': return 'text-green-500 bg-green-50';
+      case 'EQUIPE': return 'text-purple-500 bg-purple-50';
+      default: return 'text-[#ff9d00] bg-[#fff4e0]';
+    }
   };
 
   if (loading) {
@@ -105,7 +144,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* SIDEBAR NOIRE RESPONSIVE */}
+      {/* SIDEBAR */}
       <aside className={`
         ${isSidebarOpen ? 'fixed inset-0 z-50 flex' : 'hidden'} 
         md:flex md:w-72 md:fixed md:h-full bg-[#1a1a1a] p-8 text-white flex-col shadow-2xl transition-all
@@ -120,34 +159,25 @@ export default function DashboardPage() {
         </div>
 
         <nav className="space-y-4 flex-1 not-italic">
-          {/* LIEN DASHBOARD ACTIF */}
           <Link href="/dashboard" className="p-4 bg-[#ff9d00] rounded-2xl flex items-center gap-3 text-[#1a1a1a] font-black uppercase text-xs shadow-lg shadow-[#ff9d00]/20 transition-all">
             <LayoutDashboard size={18} /> Vue d'ensemble
           </Link>
-          
           <Link href="/dashboard/joueurs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Users size={18} /> Effectifs
           </Link>
-          
           <Link href="/dashboard/equipes" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Shield size={18} /> Équipes
           </Link>
-          
           <Link href="/dashboard/matchs" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <Trophy size={18} /> Matchs
           </Link>
-
-          {/* BOUTON STAFF DANS LA SIDEBAR */}
           <Link href="/dashboard/staff" className="p-4 hover:bg-white/5 rounded-2xl flex items-center gap-3 text-white/50 hover:text-white font-black uppercase text-xs transition-all">
             <UserCog size={18} /> Staff
           </Link>
         </nav>
 
         <div className="pt-8 border-t border-white/10">
-          <button 
-            onClick={handleLogout}
-            className="w-full p-5 bg-white/5 text-white/50 rounded-2xl font-black uppercase text-[10px] hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-          >
+          <button onClick={handleLogout} className="w-full p-5 bg-white/5 text-white/50 rounded-2xl font-black uppercase text-[10px] hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
             <LogOut size={14} /> Déconnexion
           </button>
         </div>
@@ -179,10 +209,8 @@ export default function DashboardPage() {
           </Link>
         </header>
 
-        {/* GRILLE DE STATS (LES CARTES CLIQUABLES) */}
+        {/* CARTES STATS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 not-italic">
-          
-          {/* 1. CARTE EFFECTIF -> JOUEURS */}
           <Link href="/dashboard/joueurs">
             <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
@@ -195,7 +223,6 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* 2. CARTE CATÉGORIES -> ÉQUIPES */}
           <Link href="/dashboard/equipes">
             <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
@@ -208,7 +235,6 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* 3. CARTE CALENDRIER -> MATCHS */}
           <Link href="/dashboard/matchs">
             <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-start group hover:border-[#ff9d00] transition-all cursor-pointer h-full hover:shadow-xl hover:-translate-y-1">
               <div>
@@ -220,32 +246,47 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
-
         </div>
 
-        {/* SECTION INFOS BAS DE PAGE */}
+        {/* SECTION ACTIVITÉ RÉCENTE + CARD ORANGE */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100">
-            <h4 className="font-black uppercase text-lg tracking-tighter italic mb-10 flex items-center justify-between">
+          
+          {/* ZONE D'ACTIVITÉ */}
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100 flex flex-col h-full">
+            <h4 className="font-black uppercase text-lg tracking-tighter italic mb-8 flex items-center justify-between">
               Activité <span className="text-[#ff9d00]">Récente</span>
               <Activity className="text-gray-200" size={24} />
             </h4>
-            <div className="flex items-center gap-5 p-6 rounded-[2rem] bg-gray-50 border border-gray-100 group hover:bg-white hover:shadow-xl transition-all">
-               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#ff9d00] shadow-sm group-hover:bg-[#ff9d00] group-hover:text-white transition-all">
-                 <ArrowUpRight size={20} />
-               </div>
-               <div>
-                 <p className="text-sm font-black uppercase">Système Prêt</p>
-                 <p className="text-[11px] text-gray-400 font-bold italic">Club opérationnel.</p>
-               </div>
+            
+            <div className="space-y-4 flex-1">
+              {logs.length > 0 ? (
+                logs.map((log) => (
+                  <div key={log.id} className="flex items-center gap-5 p-4 rounded-[2rem] bg-gray-50 border border-gray-100 hover:bg-white hover:shadow-md transition-all">
+                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${getActionColor(log.action_type)}`}>
+                       {getActionIcon(log.action_type)}
+                     </div>
+                     <div>
+                       <p className="text-xs font-black uppercase">{log.description}</p>
+                       <p className="text-[10px] text-gray-400 font-bold italic mt-0.5">
+                         {format(new Date(log.created_at), "d MMMM à HH:mm", { locale: fr })}
+                       </p>
+                     </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 bg-gray-50 rounded-[2rem] border border-dashed border-gray-200">
+                  <Activity className="text-gray-300 mb-2" size={32} />
+                  <p className="text-xs font-bold text-gray-400 uppercase italic">Aucune activité récente</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="bg-[#ff9d00] p-12 rounded-[3.5rem] shadow-2xl text-[#1a1a1a] relative overflow-hidden group transition-transform hover:scale-[1.01] cursor-pointer">
+          <div className="bg-[#ff9d00] p-12 rounded-[3.5rem] shadow-2xl text-[#1a1a1a] relative overflow-hidden group transition-transform hover:scale-[1.01] cursor-pointer flex flex-col justify-center">
             <div className="relative z-10">
               <h4 className="font-black uppercase text-2xl mb-3 tracking-tighter italic">Guide de gestion</h4>
               <p className="font-bold text-sm opacity-90 mb-8 not-italic max-w-[250px]">Apprenez à gérer vos catégories efficacement.</p>
-              <button className="bg-[#1a1a1a] text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-[#1a1a1a] transition-all shadow-xl">
+              <button className="bg-[#1a1a1a] text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-[#1a1a1a] transition-all shadow-xl w-fit">
                 Ouvrir l'aide
               </button>
             </div>
@@ -254,12 +295,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* OVERLAY MOBILE */}
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
-          onClick={() => setIsSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
     </div>
   );
