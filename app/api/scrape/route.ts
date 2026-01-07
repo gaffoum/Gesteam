@@ -7,7 +7,8 @@ export async function POST(request: Request) {
 
     if (!url) return NextResponse.json({ error: 'URL manquante' }, { status: 400 });
 
-    // 1. Récupération de la page
+    console.log(`🤖 Scraping URL: ${url}`);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -15,11 +16,10 @@ export async function POST(request: Request) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
       },
-      cache: 'no-store' // Important pour ne pas garder une vieille version en cache
+      cache: 'no-store'
     });
 
     if (!response.ok) {
-      console.error("Erreur fetch FFF:", response.status, response.statusText);
       return NextResponse.json({ error: 'Site FFF inaccessible' }, { status: 500 });
     }
 
@@ -27,76 +27,99 @@ export async function POST(request: Request) {
     const $ = cheerio.load(html);
     const standingData: any[] = [];
 
-    // 2. Stratégie de recherche "Tout-terrain"
-    // On cherche toutes les lignes (tr) de tous les corps de tableaux (tbody)
-    $('tbody tr').each((i, row) => {
+    // On sélectionne TOUTES les lignes de TOUS les tableaux trouvés
+    const allRows = $('tr');
+    console.log(`📊 Lignes brutes trouvées: ${allRows.length}`);
+
+    allRows.each((i, row) => {
       const cols = $(row).find('td');
       
-      // On filtre les lignes qui ne sont pas des données (trop courtes)
-      // Un classement a généralement au moins : Pos, Equipe, Pts, J, G, N, P (7 colonnes min)
+      // Une ligne valide de classement a généralement au moins 8 colonnes sur la FFF
+      // (Place, Logo, Nom, Pts, J, G, N, P, etc.)
       if (cols.length >= 6) {
         
-        // --- A. RECUPERATION DU NOM ---
-        // Stratégie 1 : Chercher un lien ou une classe spécifique
-        let nom = $(row).find('a.table-link, .club-name, .equipe, a').first().text().trim();
+        // 1. RECHERCHE DU NOM (C'est le plus important)
+        // On cherche un lien ou une classe spécifique, sinon on prend le texte brut
+        let nom = $(row).find('.club-name, .equipe, a.table-link').first().text().trim();
         
-        // Stratégie 2 : Si vide, prendre le texte brut de la 2ème colonne (index 1)
-        if (!nom) nom = $(cols).eq(1).text().trim();
+        // Fallback : Si pas de classe, on cherche dans la 2ème ou 3ème colonne (souvent là où est le nom)
+        if (!nom || nom.length < 3) {
+           // On teste col 1 et col 2
+           const textCol1 = $(cols).eq(1).text().trim();
+           const textCol2 = $(cols).eq(2).text().trim();
+           // Si col 1 contient des lettres, c'est probablement le nom
+           if (/[a-zA-Z]/.test(textCol1)) nom = textCol1;
+           else if (/[a-zA-Z]/.test(textCol2)) nom = textCol2;
+        }
 
-        // Nettoyage : Enlever les sauts de ligne multiples et espaces inutiles
+        // Nettoyage du nom
         nom = nom.replace(/[\n\t\r]/g, '').replace(/\s+/g, ' ').trim();
 
-        // --- B. RECUPERATION DES CHIFFRES ---
-        // Sur FFF, les points sont généralement en colonne 3 (index 2)
-        // Mais parfois il y a des colonnes cachées. On essaie de repérer la colonne "Pts" via le header si possible, 
-        // sinon on assume la structure standard : Pos | Equipe | Pts | J | G | N | P
-        
-        // Parsing sécurisé (enlève les caractères non numériques)
-        const parseCell = (index: number) => {
-          const text = $(cols).eq(index).text().trim();
-          const val = parseInt(text.replace(/[^\d-]/g, '')); // Garde chiffres et signe moins
-          return isNaN(val) ? 0 : val;
-        };
+        // 2. RECHERCHE DES POINTS
+        // On cherche la colonne qui contient "Pts" ou un gros chiffre
+        let points = -999;
+        let pointsColIndex = -1;
 
-        const points = parseCell(2);
-        const joues = parseCell(3);
-        const gagnes = parseCell(4);
-        const nuls = parseCell(5);
-        const perdus = parseCell(6);
-        
-        // --- C. VALIDATION ---
-        // On n'ajoute que si on a un nom d'équipe valide (pas juste un nombre ou vide)
-        if (nom && nom.length > 2 && !nom.match(/^\d+$/)) {
-          
-          // Position : soit colonne 0, soit calculée via l'ordre de la boucle
-          let position = parseCell(0);
-          if (position === 0) position = standingData.length + 1;
+        // On scanne les colonnes pour trouver celle des points
+        cols.each((idx, col) => {
+            const txt = $(col).text().trim();
+            // Critère : C'est un nombre, et c'est souvent la première colonne numérique après le nom
+            if (/^-?\d+$/.test(txt) && pointsColIndex === -1 && idx > 1) {
+                // Vérification supplémentaire : les points sont rarement > 100 ou < -10
+                const val = parseInt(txt);
+                if (val > -20 && val < 150) {
+                    points = val;
+                    pointsColIndex = idx;
+                }
+            }
+        });
 
-          standingData.push({
-            position,
-            nom_equipe: nom,
-            points,
-            joues,
-            gagnes,
-            nuls,
-            perdus,
-            goal_diff: 0 // Optionnel
-          });
+        // 3. RECUPERATION DES STATS (J, G, N, P)
+        // Si on a trouvé la colonne des points, les stats suivent généralement juste après
+        if (nom && nom.length > 2 && pointsColIndex !== -1) {
+            
+            const parseStat = (offset: number) => {
+                const val = parseInt($(cols).eq(pointsColIndex + offset).text().replace(/[^\d]/g, ''));
+                return isNaN(val) ? 0 : val;
+            };
+
+            const joues = parseStat(1);
+            const gagnes = parseStat(2);
+            const nuls = parseStat(3);
+            const perdus = parseStat(4);
+
+            // Gestion de la position (parfois col 0, parfois implicite)
+            let position = parseInt($(cols).eq(0).text().trim()) || (standingData.length + 1);
+
+            standingData.push({
+                position,
+                nom_equipe: nom,
+                points,
+                joues,
+                gagnes,
+                nuls,
+                perdus,
+                goal_diff: 0
+            });
         }
       }
     });
 
-    // Tri de sécurité (par points décroissants) au cas où le HTML soit en désordre
+    // Tri de sécurité et réattribution des positions propres
     standingData.sort((a, b) => b.points - a.points);
-    // Recalcul propre des positions après tri
     standingData.forEach((d, i) => d.position = i + 1);
 
-    // console.log(`Scraping réussi : ${standingData.length} équipes trouvées.`); // Décommenter pour debug serveur
+    console.log(`✅ Équipes finales extraites: ${standingData.length}`);
+
+    // Si on a moins de 2 équipes, c'est louche, on renvoie une erreur pour prévenir
+    if (standingData.length < 2) {
+        console.error("⚠️ Trop peu d'équipes trouvées. HTML structure potentiellement changée.");
+    }
 
     return NextResponse.json({ data: standingData });
 
   } catch (error) {
-    console.error('Scrape error:', error);
+    console.error('🔥 Scrape error:', error);
     return NextResponse.json({ error: 'Erreur technique scraping' }, { status: 500 });
   }
 }
