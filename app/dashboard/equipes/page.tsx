@@ -17,8 +17,8 @@ import {
   Download, 
   Upload, 
   ShieldHalf,
-  Trophy,    // <-- AJOUT
-  Settings   // <-- AJOUT
+  Trophy,    
+  Settings   
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -392,19 +392,20 @@ export default function EquipePage() {
                 
                 {/* ACTIONS */}
                 <div className="space-y-2 z-10 relative">
+                  {/* >>> MODIFICATION ICI : LIEN VERS LA PAGE DETAIL ÉQUIPE <<< */}
                   <Link 
-                    href={`/dashboard/joueurs?cat=${equipe.id}`} 
+                    href={`/dashboard/equipes/${equipe.id}`} 
                     className="bg-[#ff9d00]/10 text-[#ff9d00] w-full px-4 py-3 rounded-xl text-[9px] font-black hover:bg-[#ff9d00] hover:text-white transition-all flex items-center justify-center gap-2"
                   >
-                    GÉRER L'EFFECTIF <ChevronRight size={12} />
+                    GÉRER L'ÉQUIPE <ChevronRight size={12} />
                   </Link>
                   
-                  {/* --- AJOUT BOUTON CONFIGURER POULE --- */}
+                  {/* --- BOUTON CONFIGURER POULE --- */}
                   <Link 
                     href={`/dashboard/equipes/${equipe.id}/championnat`}
                     className="bg-gray-50 w-full px-4 py-3 rounded-xl text-[9px] font-black text-gray-400 hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2 group/btn"
                   >
-                     <Trophy size={12} className="text-[#ff9d00]"/> CONFIGURER POULE <Settings size={12} className="group-hover/btn:rotate-90 transition-transform"/>
+                      <Trophy size={12} className="text-[#ff9d00]"/> CONFIGURER POULE <Settings size={12} className="group-hover/btn:rotate-90 transition-transform"/>
                   </Link>
                 </div>
 
@@ -443,7 +444,7 @@ export default function EquipePage() {
                       </td>
                       <td className="px-10 py-6 text-right">
                         <div className="flex justify-end gap-2">
-                           {/* --- AJOUT BOUTON CONFIGURER POULE (LISTE) --- */}
+                           {/* --- BOUTON CONFIGURER POULE (LISTE) --- */}
                            <Link 
                              href={`/dashboard/equipes/${equipe.id}/championnat`}
                              className="p-3 bg-gray-50 rounded-xl text-gray-400 hover:text-black hover:bg-white border border-transparent hover:border-gray-100 transition-all shadow-sm flex items-center gap-1"
@@ -452,8 +453,9 @@ export default function EquipePage() {
                              <Trophy size={16} />
                            </Link>
 
+                           {/* >>> MODIFICATION ICI : LIEN VERS LA PAGE DETAIL ÉQUIPE <<< */}
                            <Link 
-                             href={`/dashboard/joueurs?cat=${equipe.id}`} 
+                             href={`/dashboard/equipes/${equipe.id}`} 
                              className="p-3 bg-gray-50 rounded-xl text-gray-400 hover:text-black hover:bg-white border border-transparent hover:border-gray-100 transition-all shadow-sm"
                            >
                              <ChevronRight size={16} />
