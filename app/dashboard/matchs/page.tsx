@@ -184,7 +184,8 @@ export default function MatchsPageDynamique() {
                    {teams.length === 0 && <option>Aucune équipe</option>}
                    {teams.map(t => (
                      <option key={t.id} value={t.id} className="text-black">
-                       {t.categorie} - {t.nom}
+                       {/* CORRECTION ICI : Affichage intelligent */}
+                       {t.nom === t.categorie ? t.categorie : `${t.categorie} - ${t.nom}`}
                      </option>
                    ))}
                  </select>
@@ -233,7 +234,7 @@ export default function MatchsPageDynamique() {
                     <div className="text-[#ff9d00] font-black text-base italic">{format(new Date(match.date_heure), 'HH:mm')}</div>
                   </div>
 
-                  {/* EQUIPES (CORRIGÉ : FLEX-1 pour éviter de couper le texte) */}
+                  {/* EQUIPES */}
                   <div className="flex-1 flex items-center justify-center gap-4 z-10 w-full min-w-0">
                     {/* NOM EQUIPE */}
                     <span className="flex-1 font-black text-lg md:text-xl text-black tracking-tighter text-right truncate">
@@ -249,7 +250,7 @@ export default function MatchsPageDynamique() {
                     </span>
                   </div>
 
-                  {/* STATUT / BOUTON ACTION (STYLISÉ) */}
+                  {/* STATUT / BOUTON ACTION */}
                   <div 
                     onClick={() => openScoreModal(match)}
                     className={`cursor-pointer px-6 py-4 rounded-2xl font-black text-xl min-w-[140px] text-center transition-all z-20 flex items-center justify-center gap-2 hover:scale-105 active:scale-95

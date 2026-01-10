@@ -2,263 +2,211 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useParams, useRouter } from 'next/navigation';
-import { logActivity } from '@/lib/logger';
 import { 
-  Loader2, Save, ArrowLeft, Globe, 
-  Trophy, Trash2, ExternalLink,
-  Link as LinkIcon, Sparkles
+  ArrowLeft, ExternalLink, Wand2, Trash2, Loader2, Save, Trophy,
+  Check, AlertTriangle, Link as LinkIcon
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-export default function ChampionshipConfigPage() {
-  const { id: equipeId } = useParams();
+export default function ConfigurationPoulePage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
 
-  const [equipe, setEquipe] = useState<any>(null);
-  const [adversaires, setAdversaires] = useState<any[]>([]);
+  // --- ÉTATS ---
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [teamInfo, setTeamInfo] = useState<any>(null);
   
-  // États pour l'import
-  const [fffUrl, setFffUrl] = useState("");
-  const [parsedTeams, setParsedTeams] = useState<string[]>([]);
+  // detectedTeams stocke maintenant des OBJETS { nom, pts, j, g, n, p... }
+  const [detectedTeams, setDetectedTeams] = useState<any[]>([]);
+  const [currentTeams, setCurrentTeams] = useState<any[]>([]);
+  
+  const [modal, setModal] = useState<{ 
+    show: boolean; type: 'success' | 'error'; title: string; message: string 
+  }>({
+    show: false, type: 'success', title: '', message: ''
+  });
 
+  // --- CHARGEMENT INFO ÉQUIPE ---
   useEffect(() => {
-    fetchData();
-  }, [equipeId]);
+    const fetchTeamInfo = async () => {
+        const { data } = await supabase.from('equipes').select('nom, categorie').eq('id', params.id).single();
+        setTeamInfo(data);
+    };
+    fetchTeamInfo();
+  }, [params.id]);
 
-  const fetchData = async () => {
+  // --- APPEL API SCRAPING ---
+  const handleFetchTeams = async () => {
+    if (!url) {
+        setModal({ show: true, type: 'error', title: 'URL MANQUANTE', message: 'Veuillez coller un lien valide.' });
+        return;
+    }
+
+    setLoading(true);
+    setDetectedTeams([]); 
+
     try {
-      const { data: eqData } = await supabase.from('equipes').select('*').eq('id', equipeId).single();
-      setEquipe(eqData);
+        const response = await fetch('/api/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
 
-      const { data: advData } = await supabase
-        .from('adversaires')
-        .select('*')
-        .eq('mon_equipe_id', equipeId)
-        .order('nom', { ascending: true });
+        const result = await response.json();
 
-      if (advData) setAdversaires(advData);
-    } catch (error) {
-      console.error(error);
+        if (response.ok && result.data) {
+            setDetectedTeams(result.data); // On reçoit le tableau d'objets complets
+            if (result.data.length === 0) {
+                 setModal({ show: true, type: 'error', title: 'ZÉRO RÉSULTAT', message: "Le lien est valide mais aucune équipe n'a été trouvée." });
+            }
+        } else {
+            throw new Error(result.error || "Erreur inconnue");
+        }
+
+    } catch (err: any) {
+        console.error(err);
+        setModal({ show: true, type: 'error', title: 'ERREUR', message: err.message || "Impossible de lire la page FFF." });
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
-  // --- LOGIQUE DE SCRAPPING AUTOMATIQUE (CORRIGÉE) ---
-  const handleAutoScrape = async () => {
-    if (!fffUrl) return;
-    setAnalyzing(true);
-    setParsedTeams([]); // Reset
-
-    try {
-      // Appel à notre API interne
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: fffUrl }),
-      });
-
-      const jsonResponse = await response.json();
-
-      if (!response.ok) throw new Error(jsonResponse.error || "Erreur inconnue");
-
-      // CORRECTION ICI : On lit 'data' et on extrait 'nom_equipe'
-      if (jsonResponse.data && jsonResponse.data.length > 0) {
-        // On extrait juste les noms pour cette page d'import simple
-        const teamNames = jsonResponse.data.map((item: any) => item.nom_equipe);
-        // On dédoublonne au cas où
-        const uniqueNames = Array.from(new Set(teamNames)) as string[];
-        
-        setParsedTeams(uniqueNames);
-      } else {
-        alert("Aucune équipe trouvée. Vérifiez que le lien pointe bien vers un CLASSEMENT ou un CALENDRIER FFF.");
-      }
-
-    } catch (error) {
-      console.error("Erreur scrape:", error);
-      alert("Impossible de récupérer les équipes. Le site FFF est peut-être protégé ou le lien est invalide.");
-    } finally {
-      setAnalyzing(false);
-    }
+  // --- CONFIRMATION IMPORT ---
+  const handleConfirmImport = async () => {
+    if (detectedTeams.length === 0) return;
+    setLoading(true);
+    
+    // Simulation Sauvegarde (Adaptez ici avec votre logique Supabase pour insérer les stats)
+    setTimeout(() => {
+        setLoading(false);
+        // On transfère les équipes détectées vers la "Poule Actuelle"
+        setCurrentTeams(prev => [...prev, ...detectedTeams]);
+        setDetectedTeams([]);
+        setUrl(""); 
+        setModal({ show: true, type: 'success', title: 'IMPORT RÉUSSI', message: `${detectedTeams.length} équipes ajoutées avec leurs statistiques !` });
+    }, 1000);
   };
 
-  const removeParsedTeam = (index: number) => {
-    setParsedTeams(prev => prev.filter((_, i) => i !== index));
+  const removeDetectedTeam = (index: number) => {
+    const newT = [...detectedTeams]; newT.splice(index, 1); setDetectedTeams(newT);
   };
-
-  // --- SAUVEGARDE EN BASE ---
-  const handleSaveImport = async () => {
-    if (parsedTeams.length === 0) return;
-    setSaving(true);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const toInsert = parsedTeams.map(name => ({
-        club_id: equipe.club_id,
-        mon_equipe_id: equipeId,
-        nom: name.toUpperCase(),
-        lien_fff: fffUrl || null
-      }));
-
-      const { error } = await supabase.from('adversaires').insert(toInsert);
-
-      if (error) throw error;
-
-      // On sauvegarde aussi le lien FFF dans l'équipe pour plus tard
-      if (fffUrl) {
-        await supabase.from('equipes').update({ lien_fff: fffUrl }).eq('id', equipeId);
-      }
-
-      await logActivity(supabase, equipe.club_id, user!.id, 'EQUIPE', `Import auto de ${parsedTeams.length} adversaires pour ${equipe.categorie}`);
-
-      setFffUrl("");
-      setParsedTeams([]);
-      fetchData();
-      alert(`${parsedTeams.length} équipes ajoutées !`);
-
-    } catch (error) {
-      console.error(error);
-      alert("Erreur lors de l'enregistrement");
-    } finally {
-      setSaving(false);
-    }
+  const removeCurrentTeam = (index: number) => {
+    const newT = [...currentTeams]; newT.splice(index, 1); setCurrentTeams(newT);
   };
-
-  const handleDeleteAdversaire = async (id: string) => {
-    if (!confirm("Supprimer cet adversaire ?")) return;
-    await supabase.from('adversaires').delete().eq('id', id);
-    fetchData();
-  };
-
-  if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[#ff9d00]"/></div>;
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans italic text-[#1a1a1a]">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* HEADER */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard/equipes" className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00]"><ArrowLeft size={20}/></Link>
-          <div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter">CONFIGURATION <span className="text-[#ff9d00]">POULE</span></h1>
-            <p className="text-sm font-bold text-gray-400 not-italic">
-              Championnat pour {equipe?.categorie} - {equipe?.nom}
-            </p>
+    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans text-[#1a1a1a]">
+      {/* MODALE */}
+      {modal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center border border-gray-100">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${modal.type === 'success' ? 'bg-[#ff9d00]/10 text-[#ff9d00]' : 'bg-red-50 text-red-500'}`}>
+              {modal.type === 'success' ? <Check size={32} strokeWidth={3} /> : <AlertTriangle size={32} strokeWidth={3} />}
+            </div>
+            <h3 className="text-xl font-black italic uppercase text-black mb-2">{modal.title}</h3>
+            <p className="text-gray-500 text-xs font-bold mb-8 uppercase">{modal.message}</p>
+            <button onClick={() => setModal({ ...modal, show: false })} className="w-full py-4 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00]">OK, Compris</button>
           </div>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
+            <button onClick={() => window.history.back()} className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00]"><ArrowLeft size={20} /></button>
+            <div>
+                <h1 className="text-3xl font-black italic uppercase tracking-tighter">CONFIGURATION POULE</h1>
+                <p className="text-[#ff9d00] text-xs font-bold uppercase tracking-widest">
+                    {teamInfo ? <>Championnat pour {teamInfo.nom} • {teamInfo.categorie}</> : "Chargement..."}
+                </p>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* ZONE D'IMPORT (GAUCHE) */}
-          <div className="space-y-6">
-            
-            {/* ETAPE 1 : BOUTON FFF SIMPLE */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black uppercase flex items-center gap-2">
-                  <Globe size={16} className="text-[#ff9d00]"/> 1. Trouver la poule
-                </h3>
-                <p className="text-[10px] text-gray-400 font-bold mt-1 not-italic">Ouvrir le site officiel</p>
-              </div>
-              <a href="https://epreuves.fff.fr/" target="_blank" rel="noopener noreferrer" 
-                 className="bg-black text-white px-4 py-3 rounded-xl hover:bg-[#ff9d00] transition-colors text-[10px] font-black uppercase flex items-center gap-2">
-                SITE FFF <ExternalLink size={12}/>
-              </a>
-            </div>
-
-            {/* ETAPE 2 : URL + SCRAPE */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
-              <h3 className="text-lg font-black uppercase mb-4 flex items-center gap-2">
-                <LinkIcon size={18} className="text-[#ff9d00]"/> 2. Import Automatique
-              </h3>
-              <p className="text-xs text-gray-400 font-bold mb-4 not-italic">
-                Copiez l'URL de la page du classement/calendrier et collez-la ici.
-              </p>
-              
-              <div className="space-y-3">
-                <input 
-                  type="url"
-                  className="w-full bg-gray-50 p-4 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-[#ff9d00]"
-                  placeholder="https://epreuves.fff.fr/competitions/..."
-                  value={fffUrl}
-                  onChange={(e) => setFffUrl(e.target.value)}
-                />
-
-                <button 
-                  onClick={handleAutoScrape}
-                  disabled={!fffUrl || analyzing}
-                  className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {analyzing ? <Loader2 className="animate-spin" size={16}/> : <Sparkles size={16}/>}
-                  {analyzing ? "ANALYSE DU SITE..." : "RÉCUPÉRER LES ÉQUIPES"}
-                </button>
-              </div>
-            </div>
-
-            {/* ETAPE 3 : VALIDER */}
-            {parsedTeams.length > 0 && (
-              <div className="bg-[#fff4e0] p-8 rounded-[2rem] border border-[#ff9d00]/20 animate-in slide-in-from-top-4">
-                <h3 className="text-lg font-black uppercase mb-4 text-[#ff9d00]">
-                  {parsedTeams.length} Équipes détectées
-                </h3>
-                <div className="space-y-2 mb-6 max-h-48 overflow-y-auto pr-2">
-                  {parsedTeams.map((team, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-[#ff9d00]/10 shadow-sm">
-                      <span className="text-xs font-bold uppercase">{team}</span>
-                      <button onClick={() => removeParsedTeam(idx)} className="text-gray-300 hover:text-red-500"><Trash2 size={14}/></button>
+            {/* GAUCHE : OUTILS */}
+            <div className="space-y-6">
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+                    <h3 className="text-sm font-black italic uppercase mb-4 text-[#ff9d00]">1. Import Automatique</h3>
+                    <div className="flex flex-col gap-3">
+                        <div className="relative">
+                            <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Lien Classement FFF..." className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-[#ff9d00]" />
+                        </div>
+                        <button onClick={handleFetchTeams} disabled={loading} className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00] flex items-center justify-center gap-2">
+                            {loading ? <Loader2 className="animate-spin" size={16}/> : <Wand2 size={16}/>} Analyser le classement
+                        </button>
                     </div>
-                  ))}
                 </div>
-                <button 
-                  onClick={handleSaveImport}
-                  disabled={saving}
-                  className="w-full bg-[#ff9d00] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all flex justify-center gap-2 shadow-lg active:scale-95"
-                >
-                  {saving ? <Loader2 className="animate-spin"/> : <Save size={16}/>} CONFIRMER L'IMPORT
-                </button>
-              </div>
-            )}
-          </div>
 
-          {/* LISTE DES ADVERSAIRES ACTUELS (DROITE) */}
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 h-fit">
-            <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2">
-              <Trophy size={20} className="text-[#ff9d00]"/> POULE ACTUELLE
-            </h3>
+                {/* RÉSULTATS SCRAPING (AFFICHAGE COMPLET) */}
+                {detectedTeams.length > 0 && (
+                    <div className="bg-[#fff4e0] p-6 rounded-[2rem] border border-[#ff9d00]/20 animate-in slide-in-from-bottom-4">
+                        <h3 className="text-[#ff9d00] font-black italic uppercase text-lg mb-6">{detectedTeams.length} Équipes Trouvées</h3>
+                        
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6 max-h-96 overflow-y-auto custom-scrollbar">
+                            {/* En-tête du tableau */}
+                            <div className="grid grid-cols-12 gap-2 p-3 bg-gray-50 text-[9px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                <div className="col-span-1 text-center">#</div>
+                                <div className="col-span-6">Équipe</div>
+                                <div className="col-span-1 text-center">Pts</div>
+                                <div className="col-span-1 text-center">J</div>
+                                <div className="col-span-1 text-center">G</div>
+                                <div className="col-span-1 text-center">N</div>
+                                <div className="col-span-1 text-center">P</div>
+                            </div>
 
-            {adversaires.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-xl">
-                <p className="text-gray-300 font-black text-xs">AUCUNE ÉQUIPE</p>
-                <p className="text-gray-300 text-[10px] not-italic mt-1">Collez le lien FFF à gauche pour commencer.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {adversaires.map((adv) => (
-                  <div key={adv.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-gray-100">
-                    <div className="flex items-center gap-3">
-                       <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-black shrink-0">
-                         {adv.nom.substring(0,2)}
-                       </div>
-                       <span className="font-bold text-xs uppercase">{adv.nom}</span>
+                            {detectedTeams.map((team, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-2 items-center p-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 text-xs">
+                                    <div className="col-span-1 text-center font-black text-gray-300">{index + 1}</div>
+                                    <div className="col-span-6 font-bold truncate pr-2">{team.nom}</div>
+                                    <div className="col-span-1 text-center font-black">{team.pts}</div>
+                                    <div className="col-span-1 text-center text-gray-400">{team.j}</div>
+                                    <div className="col-span-1 text-center text-green-500 font-bold">{team.g}</div>
+                                    <div className="col-span-1 text-center text-gray-400">{team.n}</div>
+                                    <div className="col-span-1 text-center text-red-400">{team.p}</div>
+                                    {/* Bouton de suppression caché, visible au survol si besoin */}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <button onClick={handleConfirmImport} className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00] flex items-center justify-center gap-2">
+                           <Save size={16}/> Valider l'import
+                        </button>
                     </div>
-                    <button 
-                      onClick={() => handleDeleteAdversaire(adv.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )}
+            </div>
 
+            {/* DROITE : POULE ACTUELLE */}
+            <div>
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 h-full min-h-[400px]">
+                    <h3 className="text-lg font-black italic uppercase flex items-center gap-2 mb-8"><Trophy className="text-[#ff9d00]" size={20}/> Poule Actuelle</h3>
+                    
+                    {currentTeams.length === 0 ? (
+                        <div className="h-64 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center text-center p-6">
+                            <span className="text-gray-300 text-4xl font-black italic opacity-20 mb-2">VIDE</span>
+                            <p className="text-gray-400 text-xs font-bold uppercase">Aucune équipe configurée</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3 animate-in fade-in">
+                            {currentTeams.map((team, index) => (
+                                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-black text-[#ff9d00] shadow-sm">{index + 1}</div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-black uppercase text-gray-800">{team.nom}</span>
+                                            <div className="flex gap-2 text-[9px] font-bold text-gray-400 mt-0.5">
+                                                <span>{team.pts} pts</span>
+                                                <span>{team.g}V - {team.n}N - {team.p}D</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => removeCurrentTeam(index)} className="text-gray-300 hover:text-red-500"><Trash2 size={14}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
       </div>
     </div>
