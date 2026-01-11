@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Trophy, 
-  ArrowLeft, Loader2, ChevronDown, Edit2, Users, Trash2, CheckCircle2, UserCheck, Bell
+  ArrowLeft, Loader2, ChevronDown, Edit2, Users, Trash2, CheckCircle2, UserCheck, Bell,
+  Activity // <-- Import de l'icône pour le mode Live
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -41,7 +42,7 @@ export default function MatchsPageDynamique() {
 
   // États sélecteur équipe
   const [teams, setTeams] = useState<any[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>('all'); // Par défaut 'all' ou l'ID de la première équipe
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('all'); 
 
   // États Modale Score
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
@@ -108,9 +109,7 @@ export default function MatchsPageDynamique() {
 
         if (teamsData && teamsData.length > 0) {
           setTeams(teamsData);
-          // Si aucune équipe sélectionnée, on met la première par défaut (ou 'all' si vous préférez)
           if (!selectedTeamId || selectedTeamId === 'all') {
-             // On garde 'all' par défaut si on veut voir tous les matchs au début
              // setSelectedTeamId(teamsData[0].id); 
           }
         }
@@ -190,16 +189,12 @@ export default function MatchsPageDynamique() {
 
   // --- FILTRAGE AMÉLIORÉ ---
   const filteredMatchs = matchs.filter(m => {
-    // 1. Filtre par équipe sélectionnée (si pas 'all')
     const teamMatch = selectedTeamId !== 'all' ? m.equipe_id === selectedTeamId : true;
-
-    // 2. Filtre Recherche
     const searchMatch = (
         (m.adversaire?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (m.equipes?.nom?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (m.equipes?.categorie?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-
     return teamMatch && searchMatch;
   });
 
@@ -212,7 +207,6 @@ export default function MatchsPageDynamique() {
   return (
     <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
       
-      {/* --- NOTIFICATION EN BAS --- */}
       <ToastNotification show={toast.show} message={toast.message} />
 
       <ScoreModal 
@@ -343,6 +337,15 @@ export default function MatchsPageDynamique() {
                             title="Voir la composition & Convocations"
                           >
                              <Users size={18} />
+                          </Link>
+
+                          {/* BOUTON LIVE (AJOUTÉ) */}
+                          <Link 
+                            href={`/dashboard/matchs/${match.id}/live`}
+                            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors animate-pulse"
+                            title="Mode Live Match"
+                          >
+                             <Activity size={18} />
                           </Link>
 
                           <div 
