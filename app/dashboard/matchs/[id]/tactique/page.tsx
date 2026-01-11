@@ -4,10 +4,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
-  ArrowLeft, Users, Save, Share2, Loader2, RefreshCw, AlertCircle,
-  Check, AlertTriangle 
+  ArrowLeft, Users, Save, Share2, Loader2, AlertCircle,
+  Check, AlertTriangle, Copy, MessageCircle, X, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function TactiquePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -24,7 +26,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
 
-  // --- MODALE ---
+  // --- MODALE GENERIQUE (Succès/Erreur) ---
   const [modal, setModal] = useState<{ 
     show: boolean; 
     type: 'success' | 'error' | 'info'; 
@@ -36,6 +38,10 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
     title: '',
     message: ''
   });
+
+  // --- ÉTATS MODALE WHATSAPP ---
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  const [generatedMessage, setGeneratedMessage] = useState("");
 
   // --- CHARGEMENT ---
   useEffect(() => {
@@ -55,7 +61,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
       // 2. Récupérer les participants
       const { data: participations, error } = await supabase
         .from('match_participations')
-        .select('*, joueurs(id, nom, prenom, poste)')
+        .select('*, joueurs(id, nom, prenom, poste, telephone)')
         .eq('match_id', params.id);
 
       if (error) throw error;
@@ -67,6 +73,8 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
         nom: p.joueurs.nom,
         prenom: p.joueurs.prenom, 
         poste: p.joueurs.poste,
+        telephone: p.joueurs.telephone,
+        reponse: p.reponse || 'attente', // 'present', 'absent', 'attente'
         est_titulaire: p.est_titulaire || false,
         x: p.position_x || 50,
         y: p.position_y || 50
@@ -135,6 +143,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
         est_titulaire: p.est_titulaire,
         position_x: p.est_titulaire ? p.x : null,
         position_y: p.est_titulaire ? p.y : null,
+        reponse: p.reponse, // On sauvegarde aussi le statut de réponse
         updated_at: new Date().toISOString()
       }));
 
@@ -149,7 +158,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
         show: true,
         type: 'success',
         title: 'SAUVEGARDE RÉUSSIE',
-        message: 'La composition a été enregistrée. Vous allez être redirigé.'
+        message: 'La composition et les statuts de présence ont été enregistrés.'
       });
       
     } catch (err: any) {
@@ -166,24 +175,82 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleSendWhatsApp = () => {
-    // INFO MODAL
+  // --- GESTION PRÉSENCE (Mise à jour directe) ---
+  const updatePresence = async (playerId: string, status: 'present' | 'absent' | 'attente') => {
+    // 1. Mise à jour Optimiste (Interface)
+    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, reponse: status } : p));
+
+    // 2. Mise à jour BDD
+    try {
+        const player = players.find(p => p.id === playerId);
+        if (player && player.participation_id) {
+            await supabase
+                .from('match_participations')
+                .update({ reponse: status, updated_at: new Date().toISOString() })
+                .eq('id', player.participation_id);
+        }
+    } catch (err) {
+        console.error("Erreur update presence", err);
+    }
+  };
+
+  // --- LOGIQUE WHATSAPP AVEC LIEN RSVP ---
+  const prepareWhatsapp = () => {
+    if (!match) return;
+    
+    const dateStr = format(new Date(match.date_heure), 'dd/MM/yyyy', { locale: fr });
+    const timeStr = format(new Date(match.date_heure), 'HH:mm');
+    
+    // Message de base (sans lien spécifique, car le lien est unique par joueur)
+    const msg = `⚽ *CONVOCATION MATCH* ⚽\n\n` +
+                `🆚 *Match :* ${match.equipes?.nom} vs ${match.adversaire}\n` +
+                `📅 *Date :* ${dateStr}\n` +
+                `🕒 *Heure :* ${timeStr}\n` +
+                `📍 *Lieu :* ${match.lieu} (${match.lieu === 'Domicile' ? 'A la maison' : 'Extérieur'})\n\n` +
+                `Tu as été sélectionné(e) pour ce match !`;
+
+    setGeneratedMessage(msg);
+    setShowWhatsappModal(true);
+  };
+
+  const copyToClipboard = () => {
+    // Pour le groupe, on ne peut pas mettre de lien unique RSVP
+    const groupMsg = generatedMessage + `\nMerci de confirmer ta présence en répondant à ce message. 💪`;
+    navigator.clipboard.writeText(groupMsg);
     setModal({
         show: true,
         type: 'info',
-        title: 'BIENTÔT DISPONIBLE',
-        message: 'L\'envoi automatique des convocations WhatsApp sera activé prochainement.'
+        title: 'COPIÉ !',
+        message: 'Le message pour le groupe est copié dans le presse-papier.'
     });
+  };
+
+  const sendIndividualMessage = (player: any) => {
+    const phone = player.telephone ? player.telephone.replace(/\s/g, '').replace(/^0/, '33') : ''; 
+    
+    // --- GÉNÉRATION DU LIEN RSVP UNIQUE ---
+    const origin = window.location.origin; 
+    const rsvpLink = `${origin}/rsvp/${player.participation_id}`;
+    
+    const individualMsg = `${generatedMessage}\n\n👉 *CLIQUE ICI POUR CONFIRMER TA PRÉSENCE :*\n${rsvpLink}`;
+    
+    // Utilisation de api.whatsapp.com pour un meilleur support des émojis et liens
+    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(individualMsg)}`;
+    window.open(url, '_blank');
   };
 
   // --- GESTION CLIC MODALE ---
   const handleModalClose = () => {
     setModal({ ...modal, show: false });
-    // SI C'ÉTAIT UN SUCCÈS -> REDIRECTION
     if (modal.type === 'success') {
         router.push('/dashboard/matchs');
     }
   };
+
+  // Calculs Compteurs
+  const countPresent = players.filter(p => p.reponse === 'present').length;
+  const countAbsent = players.filter(p => p.reponse === 'absent').length;
+  const countAttente = players.filter(p => p.reponse === 'attente').length;
 
   if (loading) {
     return (
@@ -199,11 +266,138 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-[#f9fafb] p-4 md:p-8 font-sans text-[#1a1a1a] flex flex-col h-screen overflow-hidden">
       
+      {/* --- MODALE WHATSAPP & GESTION PRÉSENCE --- */}
+      {showWhatsappModal && (
+         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-gray-100">
+               
+               {/* Header Modale */}
+               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-[2rem]">
+                  <div>
+                    <h3 className="text-xl font-black italic uppercase text-black">GESTION CONVOCATIONS</h3>
+                    <p className="text-gray-400 text-xs font-bold uppercase">Envoi messages & Suivi présences</p>
+                  </div>
+                  <button onClick={() => setShowWhatsappModal(false)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={20}/></button>
+               </div>
+
+               {/* Résumé Compteurs */}
+               <div className="flex justify-around p-4 bg-white border-b border-gray-100 shadow-sm z-10">
+                  <div className="flex flex-col items-center">
+                      <span className="text-xl font-black text-green-500">{countPresent}</span>
+                      <span className="text-[9px] font-bold uppercase text-gray-400">Présents</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                      <span className="text-xl font-black text-red-500">{countAbsent}</span>
+                      <span className="text-[9px] font-bold uppercase text-gray-400">Absents</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                      <span className="text-xl font-black text-[#ff9d00]">{countAttente}</span>
+                      <span className="text-[9px] font-bold uppercase text-gray-400">En attente</span>
+                  </div>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 bg-[#f9fafb]">
+                  
+                  {/* Option 1 : Message Groupe */}
+                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                     <div className="flex justify-between items-start mb-4">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
+                            <Share2 size={12}/> Message Groupe (Générique)
+                        </label>
+                        <button onClick={copyToClipboard} className="text-[#ff9d00] text-[10px] font-black uppercase flex items-center gap-2 hover:underline">
+                           <Copy size={12}/> Copier le texte
+                        </button>
+                     </div>
+                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs md:text-sm whitespace-pre-line text-gray-600 font-medium select-all">
+                        {generatedMessage + `\nMerci de confirmer ta présence en répondant à ce message.`}
+                     </div>
+                  </div>
+
+                  {/* Option 2 : Liste Individuelle + Actions */}
+                  <div>
+                     <h4 className="text-sm font-black italic uppercase mb-4 flex items-center gap-2 px-2">
+                        <Users size={16} className="text-[#ff9d00]"/> Envoi Individuel & Suivi ({players.length})
+                     </h4>
+                     <div className="grid grid-cols-1 gap-3">
+                        {players.map(p => (
+                           <div 
+                             key={p.id} 
+                             className={`flex flex-col md:flex-row md:items-center justify-between p-3 bg-white border rounded-xl shadow-sm transition-all
+                                ${p.reponse === 'present' ? 'border-green-200 bg-green-50/30' : 
+                                  p.reponse === 'absent' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}
+                             `}
+                           >
+                              {/* Info Joueur */}
+                              <div className="flex items-center gap-3 mb-3 md:mb-0">
+                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black text-white ${p.est_titulaire ? 'bg-[#ff9d00]' : 'bg-gray-300'}`}>
+                                    {p.nom.charAt(0)}
+                                 </div>
+                                 <div className="flex flex-col">
+                                    <span className="text-xs font-bold uppercase leading-none text-black">{p.prenom} {p.nom}</span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[9px] text-gray-400 font-bold uppercase">{p.est_titulaire ? 'Titulaire' : 'Remplaçant'}</span>
+                                        {/* Badge Statut */}
+                                        {p.reponse === 'present' && <span className="text-[8px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-black uppercase">Présent</span>}
+                                        {p.reponse === 'absent' && <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-black uppercase">Absent</span>}
+                                    </div>
+                                 </div>
+                              </div>
+
+                              {/* Actions Boutons */}
+                              <div className="flex items-center gap-2 self-end md:self-auto">
+                                  {/* Bouton Envoi Lien RSVP */}
+                                  <button 
+                                    onClick={() => sendIndividualMessage(p)}
+                                    className="h-8 px-3 flex items-center gap-2 bg-black text-white rounded-lg hover:bg-[#25D366] transition-all mr-2 shadow-sm text-[9px] font-black uppercase"
+                                    title="Envoyer convocation avec lien"
+                                  >
+                                     <MessageCircle size={14} /> Envoyer Lien
+                                  </button>
+
+                                  <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+                                  {/* Boutons Manuels */}
+                                  <button 
+                                    onClick={() => updatePresence(p.id, 'present')}
+                                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-[9px] font-black uppercase transition-all
+                                        ${p.reponse === 'present' ? 'bg-green-500 text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-green-100 hover:text-green-600'}
+                                    `}
+                                  >
+                                    <ThumbsUp size={12} />
+                                  </button>
+
+                                  <button 
+                                    onClick={() => updatePresence(p.id, 'absent')}
+                                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-[9px] font-black uppercase transition-all
+                                        ${p.reponse === 'absent' ? 'bg-red-500 text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-red-100 hover:text-red-600'}
+                                    `}
+                                  >
+                                    <ThumbsDown size={12} />
+                                  </button>
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                  </div>
+               </div>
+               
+               {/* Footer Modale */}
+               <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-[2rem] flex justify-end">
+                   <button 
+                     onClick={() => { setShowWhatsappModal(false); handleSaveComposition(); }}
+                     className="bg-black text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00] transition-all shadow-lg"
+                   >
+                     Fermer & Actualiser
+                   </button>
+               </div>
+            </div>
+         </div>
+      )}
+
       {/* --- MODALE GESTEAM PRO LIGHT --- */}
       {modal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center border border-gray-100 transform scale-100 animate-in zoom-in-95 duration-200">
-            {/* ICONE */}
             <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${
                 modal.type === 'success' ? 'bg-[#ff9d00]/10 text-[#ff9d00]' : 
                 modal.type === 'error' ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500'
@@ -213,11 +407,9 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
               {modal.type === 'info' && <Share2 size={32} strokeWidth={3} />}
             </div>
             
-            {/* TEXTE */}
             <h3 className="text-xl font-black italic uppercase text-black mb-2 leading-none">{modal.title}</h3>
             <p className="text-gray-500 text-xs font-bold mb-8 uppercase tracking-wide leading-relaxed">{modal.message}</p>
             
-            {/* BOUTON AVEC ACTION DE REDIRECTION */}
             <button 
               onClick={handleModalClose}
               className="w-full py-4 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#ff9d00] transition-colors shadow-lg active:scale-95 outline-none"
@@ -228,7 +420,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* HEADER */}
+      {/* HEADER PAGE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
         <div className="flex items-center gap-4">
            <Link href={`/dashboard/matchs/${params.id}/selection`} className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00] transition-colors">
@@ -244,7 +436,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
         
         <div className="flex gap-2">
            <button 
-             onClick={handleSendWhatsApp}
+             onClick={prepareWhatsapp}
              className="bg-green-500 text-white px-6 py-3 rounded-xl font-black text-[10px] tracking-widest uppercase hover:bg-green-600 transition-all shadow-lg flex items-center gap-2"
            >
               <Share2 size={16}/> Convoquer
@@ -272,7 +464,7 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
               </span>
            </div>
 
-           {/* CONTENEUR DU TERRAIN : Limité en largeur et centré */}
+           {/* CONTENEUR DU TERRAIN */}
            <div className="flex-1 w-full max-w-[600px] mx-auto relative h-full"> 
                <div 
                  ref={fieldRef}
@@ -291,11 +483,9 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
                   <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/60 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
                   <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
                   
-                  {/* Surface Haut */}
                   <div className="absolute top-0 left-1/2 w-48 h-24 border-2 border-t-0 border-white/60 -translate-x-1/2 bg-white/5"></div>
                   <div className="absolute top-0 left-1/2 w-20 h-8 border-2 border-t-0 border-white/60 -translate-x-1/2 bg-white/10"></div>
                   
-                  {/* Surface Bas */}
                   <div className="absolute bottom-0 left-1/2 w-48 h-24 border-2 border-b-0 border-white/60 -translate-x-1/2 bg-white/5"></div>
                   <div className="absolute bottom-0 left-1/2 w-20 h-8 border-2 border-b-0 border-white/60 -translate-x-1/2 bg-white/10"></div>
 
@@ -312,13 +502,17 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
                         transform: 'translate(-50%, -50%)'
                       }}
                     >
-                       {/* PION */}
-                       <div className="w-10 h-10 rounded-full bg-white border-2 border-black flex items-center justify-center shadow-lg font-black text-xs text-black mb-1">
+                       {/* PION AVEC COULEUR STATUT */}
+                       <div className={`w-10 h-10 rounded-full border-2 border-black flex items-center justify-center shadow-lg font-black text-xs text-black mb-1
+                          ${player.reponse === 'present' ? 'bg-green-100' : player.reponse === 'absent' ? 'bg-red-100' : 'bg-white'}
+                       `}>
                           {player.nom.charAt(0)}{player.prenom?.charAt(0)}
                        </div>
                        
-                       {/* NOM + PRÉNOM */}
-                       <span className="text-[9px] font-bold text-white bg-black/60 px-2 py-1 rounded shadow-sm whitespace-nowrap uppercase backdrop-blur-sm">
+                       {/* ETIQUETTE NOM */}
+                       <span className={`text-[9px] font-bold text-white px-2 py-1 rounded shadow-sm whitespace-nowrap uppercase backdrop-blur-sm
+                          ${player.reponse === 'present' ? 'bg-green-600' : player.reponse === 'absent' ? 'bg-red-600' : 'bg-black/60'}
+                       `}>
                           {player.prenom} {player.nom}
                        </span>
                     </div>
@@ -356,9 +550,15 @@ export default function TactiquePage({ params }: { params: { id: string } }) {
                     key={player.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, player.id)}
-                    className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3 cursor-grab active:cursor-grabbing hover:border-[#ff9d00] transition-colors group"
+                    className={`p-3 rounded-xl border shadow-sm flex items-center gap-3 cursor-grab active:cursor-grabbing transition-colors group
+                       ${player.reponse === 'present' ? 'bg-green-50 border-green-200' : 
+                         player.reponse === 'absent' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100 hover:border-[#ff9d00]'}
+                    `}
                   >
-                     <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[10px] font-black group-hover:bg-[#ff9d00] group-hover:text-white transition-colors">
+                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black transition-colors
+                        ${player.reponse === 'present' ? 'bg-green-500 text-white' : 
+                          player.reponse === 'absent' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-[#ff9d00] group-hover:text-white'}
+                     `}>
                         {player.nom.charAt(0)}
                      </div>
                      <div className="flex-1">
