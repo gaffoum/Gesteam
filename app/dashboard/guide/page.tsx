@@ -1,233 +1,189 @@
 "use client";
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { 
-  ArrowLeft, BookOpen, Shield, Users, Calendar, 
-  LayoutTemplate, MessageCircle, ChevronRight, HelpCircle
+  BookOpen, Users, Trophy, CalendarCheck, BarChart2, 
+  Activity, Shield, Settings, LayoutGrid, List 
 } from 'lucide-react';
 
-// --- CONTENU DU GUIDE ---
-const GUIDE_SECTIONS = [
-  {
-    id: 'intro',
-    title: 'Introduction',
-    icon: <HelpCircle size={20} />,
-    content: (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="bg-[#ff9d00] p-8 rounded-[2rem] text-white shadow-lg">
-          <h2 className="text-3xl font-black italic uppercase mb-2">Bienvenue sur Gesteam Pro</h2>
-          <p className="font-medium opacity-90">
-            Votre assistant numérique pour la gestion de club. Ce guide vous explique comment utiliser chaque fonctionnalité pour gagner du temps.
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-black italic uppercase mb-4 text-black">Les bases</h3>
-          <ul className="space-y-3">
-            <li className="flex items-start gap-3">
-              <span className="bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</span>
-              <p className="text-sm text-gray-500 font-medium">Naviguez via le menu latéral pour accéder aux Équipes, Joueurs et Matchs.</p>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
-              <p className="text-sm text-gray-500 font-medium">Utilisez le bouton <span className="font-bold text-black">NOUVEAU</span> présent sur chaque page pour ajouter des données.</p>
-            </li>
-          </ul>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: 'equipes',
-    title: 'Équipes & Scraping',
-    icon: <Shield size={20} />,
-    content: (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <h2 className="text-2xl font-black italic uppercase text-black mb-2">Configuration des Équipes</h2>
-        
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 bg-blue-50 text-blue-600 px-4 py-2 rounded-bl-2xl text-[10px] font-black uppercase">Automatique</div>
-          <h3 className="text-lg font-black uppercase mb-3 flex items-center gap-2">
-            <LayoutTemplate size={18} className="text-[#ff9d00]"/> Import FFF (Scraping)
-          </h3>
-          <p className="text-sm text-gray-500 mb-4 leading-relaxed">
-            Pour récupérer automatiquement le classement et les adversaires de votre poule :
-          </p>
-          <ol className="list-decimal list-inside space-y-2 text-sm font-bold text-gray-700 bg-gray-50 p-4 rounded-xl">
-            <li>Allez sur le site officiel de la FFF (compétitions).</li>
-            <li>Copiez l'URL de la page de classement de votre poule.</li>
-            <li>Dans Gesteam, allez dans <strong>Équipes &gt; Configurer Poule</strong>.</li>
-            <li>Collez l'URL et validez.</li>
-          </ol>
-        </div>
-
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-black uppercase mb-3">Ajout Manuel</h3>
-          <p className="text-sm text-gray-500">
-            Vous pouvez créer des équipes manuellement pour les catégories qui ne sont pas en compétition officielle (ex: École de foot).
-          </p>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: 'matchs',
-    title: 'Matchs & Tactique',
-    icon: <Calendar size={20} />,
-    content: (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <h2 className="text-2xl font-black italic uppercase text-black mb-2">Gestion des Matchs</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm">
-              <span className="text-[#ff9d00] font-black text-4xl opacity-20 absolute">01</span>
-              <h3 className="text-sm font-black uppercase mb-2 relative z-10">Création</h3>
-              <p className="text-xs text-gray-500">
-                Sélectionnez votre équipe. L'adversaire est suggéré automatiquement si vous avez configuré le scraping. Sinon, saisissez-le manuellement (Amical).
-              </p>
-           </div>
-           <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm">
-              <span className="text-[#ff9d00] font-black text-4xl opacity-20 absolute">02</span>
-              <h3 className="text-sm font-black uppercase mb-2 relative z-10">Sélection</h3>
-              <p className="text-xs text-gray-500">
-                Cochez les joueurs disponibles pour le match. Ils sont triés par poste (Gardiens, Défenseurs, etc.).
-              </p>
-           </div>
-        </div>
-
-        <div className="bg-black text-white p-6 rounded-[2rem] shadow-lg">
-           <h3 className="text-lg font-black uppercase mb-3 flex items-center gap-2">
-             <LayoutTemplate size={18} className="text-[#ff9d00]"/> Tableau Tactique Interactif
-           </h3>
-           <p className="text-sm text-gray-300 mb-4">
-             Une fois l'effectif choisi, accédez au terrain virtuel :
-           </p>
-           <ul className="space-y-2 text-xs font-bold uppercase tracking-wide">
-             <li className="flex items-center gap-2"><div className="w-2 h-2 bg-[#ff9d00] rounded-full"></div> Glissez les joueurs sur le terrain pour les titulariser.</li>
-             <li className="flex items-center gap-2"><div className="w-2 h-2 bg-[#ff9d00] rounded-full"></div> Glissez vers la droite pour les mettre remplaçants.</li>
-             <li className="flex items-center gap-2"><div className="w-2 h-2 bg-[#ff9d00] rounded-full"></div> Sauvegardez pour figer la compo.</li>
-           </ul>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: 'whatsapp',
-    title: 'Convocations & RSVP',
-    icon: <MessageCircle size={20} />,
-    content: (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <h2 className="text-2xl font-black italic uppercase text-black mb-2">Communication</h2>
-        
-        <div className="bg-green-50 p-6 rounded-[2rem] border border-green-100 shadow-sm">
-          <h3 className="text-lg font-black uppercase mb-3 text-green-700 flex items-center gap-2">
-            <MessageCircle size={18}/> Système WhatsApp
-          </h3>
-          <p className="text-sm text-green-800 mb-4">
-            Depuis la page Tactique, cliquez sur <strong>CONVOQUER</strong>.
-          </p>
-          <div className="space-y-3">
-             <div className="bg-white p-4 rounded-xl shadow-sm border border-green-100">
-                <h4 className="text-xs font-black uppercase text-black mb-1">Message Groupe</h4>
-                <p className="text-[10px] text-gray-500">Copie un message générique (Date, Heure, Lieu) à coller dans votre groupe d'équipe.</p>
-             </div>
-             <div className="bg-white p-4 rounded-xl shadow-sm border border-green-100">
-                <h4 className="text-xs font-black uppercase text-black mb-1">Envoi Individuel (Recommandé)</h4>
-                <p className="text-[10px] text-gray-500">
-                  Envoie un message privé à chaque joueur contenant un <strong>LIEN UNIQUE</strong> de confirmation.
-                </p>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-black uppercase mb-3">Suivi des Présences (Live)</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Quand un joueur clique sur le lien et valide sa présence :
-          </p>
-          <div className="flex gap-4">
-             <div className="flex-1 bg-gray-50 p-3 rounded-xl text-center">
-                <span className="block text-xl">✅</span>
-                <span className="text-[10px] font-bold uppercase text-gray-400">Pastille Verte</span>
-             </div>
-             <div className="flex-1 bg-gray-50 p-3 rounded-xl text-center">
-                <span className="block text-xl">🔔</span>
-                <span className="text-[10px] font-bold uppercase text-gray-400">Notification</span>
-             </div>
-             <div className="flex-1 bg-gray-50 p-3 rounded-xl text-center">
-                <span className="block text-xl">📊</span>
-                <span className="text-[10px] font-bold uppercase text-gray-400">Compteur à jour</span>
-             </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-];
-
 export default function GuidePage() {
-  const [activeTab, setActiveTab] = useState(GUIDE_SECTIONS[0].id);
+  
+  // État pour la vue (Carte ou Liste)
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
 
-  const activeContent = GUIDE_SECTIONS.find(s => s.id === activeTab)?.content;
+  const sections = [
+    {
+      title: "Gestion d'Effectif",
+      icon: Users,
+      color: "text-blue-500",
+      bg: "bg-blue-50",
+      steps: [
+        "Accédez à l'onglet 'Effectifs' pour voir vos joueurs.",
+        "Ajoutez un joueur avec le bouton '+' en renseignant ses infos.",
+        "Attribuez des numéros et des postes précis.",
+        "Les joueurs créés ici seront disponibles pour les feuilles de match."
+      ]
+    },
+    {
+      title: "Matchs & Live",
+      icon: Trophy,
+      color: "text-[#ff9d00]",
+      bg: "bg-[#fff4e0]",
+      steps: [
+        "Planifiez une rencontre via 'Programmer un match'.",
+        "Avant le match : Définissez la composition et la tactique.",
+        "Pendant le match : Cliquez sur le bouton ⚡ (Live) pour saisir les actions en temps réel.",
+        "Après le match : Le score et les stats sont enregistrés automatiquement."
+      ]
+    },
+    {
+      title: "Entraînements",
+      icon: CalendarCheck,
+      color: "text-green-600",
+      bg: "bg-green-50",
+      steps: [
+        "Créez une séance en choisissant la date, l'heure et l'équipe.",
+        "Utilisez le bouton 'Thèmes' pour configurer vos types de séances (Physique, Tactique...).",
+        "Le jour J : Ouvrez la séance et faites l'appel en un clic (Présent / Absent / Retard).",
+        "Le taux de présence est calculé instantanément."
+      ]
+    },
+    {
+      title: "Statistiques",
+      icon: BarChart2,
+      color: "text-purple-500",
+      bg: "bg-purple-50",
+      steps: [
+        "Visualisez les performances globales dans l'onglet 'Statistiques'.",
+        "Utilisez les filtres pour voir les stats d'une équipe spécifique ou d'un match précis.",
+        "Découvrez les 'Top 3' automatiques : Meilleurs buteurs, passeurs et cartons.",
+        "Analysez l'évolution de votre saison grâce aux données cumulées."
+      ]
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans text-[#1a1a1a]">
-      <div className="max-w-6xl mx-auto h-full flex flex-col">
-        
-        {/* HEADER */}
-        <div className="flex items-center gap-4 mb-10">
-          <Link href="/dashboard" className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00] transition-colors">
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-             <h1 className="text-3xl font-black italic uppercase tracking-tighter">GUIDE DE GESTION</h1>
-             <p className="text-[#ff9d00] text-xs font-bold uppercase tracking-widest">Documentation & Aide</p>
-          </div>
-        </div>
-
-        {/* CONTENU PRINCIPAL (LAYOUT 2 COLONNES) */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+    <div className="p-6 md:p-12 font-sans text-[#1a1a1a] min-h-screen bg-[#f9fafb]">
+      
+      {/* HEADER & CONTROLS */}
+      <div className="max-w-6xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-end gap-8">
           
-          {/* MENU LATÉRAL (Navigation) */}
-          <div className="w-full lg:w-1/4 sticky top-6">
-             <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden p-2">
-                {GUIDE_SECTIONS.map((section) => (
-                  <button
-                    key={section.id}
-                    onClick={() => setActiveTab(section.id)}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl transition-all mb-1 last:mb-0 group
-                      ${activeTab === section.id 
-                        ? 'bg-black text-white shadow-md' 
-                        : 'hover:bg-gray-50 text-gray-500'}
-                    `}
-                  >
-                     <div className="flex items-center gap-3">
-                        <span className={activeTab === section.id ? 'text-[#ff9d00]' : 'text-gray-400 group-hover:text-[#ff9d00]'}>
-                          {section.icon}
-                        </span>
-                        <span className="text-xs font-black uppercase tracking-wide">{section.title}</span>
-                     </div>
-                     {activeTab === section.id && <ChevronRight size={14} className="text-[#ff9d00]"/>}
-                  </button>
-                ))}
-             </div>
-
-             <div className="mt-6 bg-[#ff9d00]/10 p-6 rounded-[2rem] text-center border border-[#ff9d00]/20">
-                <BookOpen size={32} className="mx-auto text-[#ff9d00] mb-3"/>
-                <p className="text-[10px] font-bold text-[#ff9d00] uppercase leading-relaxed">
-                  Besoin d'aide supplémentaire ?<br/>Contactez le support technique.
-                </p>
-             </div>
+          {/* Titres */}
+          <div className="text-center md:text-left flex-1">
+            <div className="inline-flex items-center gap-3 bg-white px-6 py-3 rounded-full shadow-sm border border-gray-100 mb-6">
+                <BookOpen size={20} className="text-[#ff9d00]" />
+                <span className="text-xs font-black uppercase tracking-widest text-gray-400">Centre d'aide</span>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter mb-4">
+              Guide d'utilisation <span className="text-[#ff9d00]">Gesteam</span>
+            </h1>
+            <p className="text-gray-500 font-medium text-sm max-w-2xl leading-relaxed">
+              Maîtrisez toutes les fonctionnalités de votre dashboard manager.
+            </p>
           </div>
 
-          {/* ZONE DE CONTENU */}
-          <div className="flex-1 w-full min-h-[500px]">
-             {activeContent}
-          </div>
-
-        </div>
-
+          {/* TOGGLE VIEW MODE (Style Orange) */}
+           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+               <button 
+                  onClick={() => setViewMode('cards')}
+                  className={`p-3 rounded-lg transition-all ${viewMode === 'cards' ? 'bg-[#ff9d00] text-black shadow-md' : 'text-gray-300 hover:bg-gray-50 hover:text-black'}`}
+                  title="Vue Cartes"
+               >
+                   <LayoutGrid size={18} />
+               </button>
+               <button 
+                  onClick={() => setViewMode('list')}
+                  className={`p-3 rounded-lg transition-all ${viewMode === 'list' ? 'bg-[#ff9d00] text-black shadow-md' : 'text-gray-300 hover:bg-gray-50 hover:text-black'}`}
+                  title="Vue Liste"
+               >
+                   <List size={18} />
+               </button>
+           </div>
       </div>
+
+      {/* CONTENU (GRILLE OU LISTE) */}
+      <div className="max-w-6xl mx-auto">
+        {viewMode === 'cards' ? (
+            // --- VUE CARTES (GRILLE) ---
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {sections.map((section, idx) => (
+                  <div key={idx} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 hover:border-[#ff9d00]/50 transition-all group hover:shadow-xl">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${section.bg} ${section.color} transition-transform group-hover:scale-110 duration-500`}>
+                        <section.icon size={28} strokeWidth={2.5} />
+                      </div>
+                      <h2 className="text-2xl font-black italic uppercase tracking-tighter">{section.title}</h2>
+                    </div>
+                    <ul className="space-y-4">
+                      {section.steps.map((step, stepIdx) => (
+                        <li key={stepIdx} className="flex items-start gap-4">
+                          <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center shrink-0 mt-0.5 border border-gray-100 font-black text-[10px] text-gray-400">
+                            {stepIdx + 1}
+                          </div>
+                          <p className="text-sm font-bold text-gray-600 leading-relaxed">
+                            {step}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+            </div>
+        ) : (
+            // --- VUE LISTE (LINEAIRE) ---
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {sections.map((section, idx) => (
+                  <div key={idx} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col md:flex-row gap-8 items-start hover:border-[#ff9d00]/30 transition-all">
+                    
+                    {/* Colonne Gauche : Titre & Icone */}
+                    <div className="flex items-center gap-4 md:w-1/3 border-b md:border-b-0 md:border-r border-gray-50 pb-4 md:pb-0">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${section.bg} ${section.color} shrink-0`}>
+                        <section.icon size={32} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                          <h2 className="text-xl font-black italic uppercase tracking-tighter">{section.title}</h2>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Module {idx + 1}</p>
+                      </div>
+                    </div>
+
+                    {/* Colonne Droite : Etapes */}
+                    <ul className="flex-1 grid grid-cols-1 gap-3">
+                      {section.steps.map((step, stepIdx) => (
+                        <li key={stepIdx} className="flex items-center gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#ff9d00] shrink-0"></div>
+                          <p className="text-sm font-bold text-gray-600 leading-relaxed">
+                            {step}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+
+                  </div>
+                ))}
+            </div>
+        )}
+      </div>
+
+      {/* SECTION ASTUCE (Toujours visible) */}
+      <div className="max-w-6xl mx-auto mt-12 bg-black text-white p-10 rounded-[3rem] shadow-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+         <div className="relative z-10 flex-1">
+            <div className="flex items-center gap-3 mb-4 text-[#ff9d00]">
+                <Activity size={24} />
+                <span className="font-black uppercase tracking-widest text-xs">Astuce Pro</span>
+            </div>
+            <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Gagnez du temps !</h3>
+            <p className="text-gray-400 text-sm font-medium">
+                Utilisez le bouton <span className="text-white font-bold">"Auto-Remplir"</span> dans la configuration des thèmes d'entraînement pour générer automatiquement une liste standard (Physique, Technique, etc.).
+            </p>
+         </div>
+         <div className="relative z-10">
+            <Settings size={60} className="text-[#ff9d00] opacity-80 animate-spin-slow" />
+         </div>
+         
+         {/* Déco fond */}
+         <Shield className="absolute -right-10 -bottom-10 text-white opacity-5 rotate-12" size={300} />
+      </div>
+
     </div>
   );
 }

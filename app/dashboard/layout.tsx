@@ -6,7 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, Users, Trophy, UserCog, 
-  LogOut, Menu, X, Shield, BarChart2, BookOpen 
+  LogOut, Menu, X, Shield, BarChart2, BookOpen,
+  CalendarCheck // <-- Nouvelle icône importée
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,24 +21,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // On récupère les données brutes
       const { data } = await supabase
         .from('profiles')
-        .select('clubs(nom)') // La jointure est correcte ici
+        .select('clubs(nom)')
         .eq('id', session.user.id)
         .single();
         
-      // CORRECTION ICI : On force le type pour éviter l'erreur TypeScript
       const profile = data as any;
 
-      // On vérifie si club et nom existent avant de l'assigner
-      // On gère le cas où clubs pourrait être un tableau ou un objet
       if (profile?.clubs) {
-          // Si c'est un tableau (parfois le cas avec Supabase selon la config)
           if (Array.isArray(profile.clubs) && profile.clubs[0]?.nom) {
              setClubName(profile.clubs[0].nom);
           } 
-          // Si c'est un objet unique (cas standard avec .single())
           else if (profile.clubs?.nom) {
              setClubName(profile.clubs.nom);
           }
@@ -51,12 +46,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/login');
   };
 
-  // LISTE DES MENUS
+  // LISTE DES MENUS (Mise à jour)
   const menuItems = [
     { label: "Vue d'ensemble", icon: <LayoutDashboard size={18} />, href: "/dashboard" },
     { label: "Effectifs", icon: <Users size={18} />, href: "/dashboard/joueurs" },
     { label: "Équipes", icon: <Shield size={18} />, href: "/dashboard/equipes" },
     { label: "Matchs", icon: <Trophy size={18} />, href: "/dashboard/matchs" },
+    { label: "Entraînements", icon: <CalendarCheck size={18} />, href: "/dashboard/entrainements" }, // <-- NOUVEAU LIEN
     { label: "Statistiques", icon: <BarChart2 size={18} />, href: "/dashboard/stats" },
     { label: "Guide", icon: <BookOpen size={18} />, href: "/dashboard/guide" },
     { label: "Staff", icon: <UserCog size={18} />, href: "/dashboard/staff" },
