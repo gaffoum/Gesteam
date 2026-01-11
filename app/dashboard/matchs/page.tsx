@@ -4,13 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Trophy, 
-  ArrowLeft, Loader2, ChevronDown, Edit2
+  ArrowLeft, Loader2, ChevronDown, Edit2, Users, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-// Imports composants
+// Imports composants existants
 import LiveStandings from '../../components/LiveStandings';
 import TeamPositionChart from '../../components/TeamPositionChart';
 import ScoreModal from '../../components/ScoreModal';
@@ -21,14 +21,14 @@ export default function MatchsPageDynamique() {
   const [matchs, setMatchs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Stats internes (pour usage futur ou graphique)
+  // Stats internes
   const [stats, setStats] = useState({ standings: [], history: [] });
 
-  // États pour le sélecteur d'équipe (Classement FFF)
+  // États sélecteur équipe
   const [teams, setTeams] = useState<any[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
-  // --- ÉTATS POUR LA MODALE SCORE ---
+  // États Modale Score
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
 
@@ -50,7 +50,7 @@ export default function MatchsPageDynamique() {
 
       if (profile?.club_id) {
         
-        // 1. Récupérer les équipes
+        // 1. Equipes
         const { data: teamsData } = await supabase
           .from('equipes')
           .select('id, nom, categorie')
@@ -59,11 +59,10 @@ export default function MatchsPageDynamique() {
 
         if (teamsData && teamsData.length > 0) {
           setTeams(teamsData);
-          // On ne change la sélection que si elle est vide (pour éviter reset si refresh)
           if (!selectedTeamId) setSelectedTeamId(teamsData[0].id);
         }
 
-        // 2. Récupérer les matchs
+        // 2. Matchs
         const { data: matchesData, error } = await supabase
           .from('matchs')
           .select('*, equipes(nom, categorie)')
@@ -72,7 +71,7 @@ export default function MatchsPageDynamique() {
 
         if (error) throw error;
 
-        // 3. Calculs Stats (Interne)
+        // 3. Calculs Stats
         const clubsMap: any = {};
         const history: any[] = [];
         let currentPoints = 0;
@@ -118,10 +117,30 @@ export default function MatchsPageDynamique() {
     }
   };
 
-  // --- FONCTION POUR OUVRIR LA MODALE ---
   const openScoreModal = (match: any) => {
     setSelectedMatch(match);
     setIsScoreModalOpen(true);
+  };
+
+  // --- Fonction de suppression ---
+  const handleDeleteMatch = async (id: string) => {
+    if (confirm("Êtes-vous sûr de vouloir supprimer ce match ? Cette action est irréversible.")) {
+        try {
+            const { error } = await supabase.from('matchs').delete().eq('id', id);
+            if (error) throw error;
+            fetchMatchsAndCalculate();
+        } catch (err) {
+            console.error("Erreur suppression:", err);
+            alert("Erreur lors de la suppression.");
+        }
+    }
+  };
+
+  // --- NOUVEAU : Fonction de nettoyage du nom ---
+  const cleanTeamName = (name: string) => {
+    if (!name) return "";
+    // Remplace tout ce qui est entre parenthèses (...) par vide et nettoie les espaces
+    return name.replace(/\s*\(.*?\)/g, '').trim();
   };
 
   const filteredMatchs = matchs.filter(m => 
@@ -139,12 +158,11 @@ export default function MatchsPageDynamique() {
   return (
     <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 italic font-black uppercase">
       
-      {/* --- INTEGRATION DE LA MODALE --- */}
       <ScoreModal 
         isOpen={isScoreModalOpen} 
         match={selectedMatch} 
         onClose={() => setIsScoreModalOpen(false)}
-        onUpdate={fetchMatchsAndCalculate} // Met à jour le calendrier après validation
+        onUpdate={fetchMatchsAndCalculate} 
       />
 
       <div className="max-w-7xl mx-auto">
@@ -184,8 +202,8 @@ export default function MatchsPageDynamique() {
                    {teams.length === 0 && <option>Aucune équipe</option>}
                    {teams.map(t => (
                      <option key={t.id} value={t.id} className="text-black">
-                       {/* CORRECTION ICI : Affichage intelligent */}
-                       {t.nom === t.categorie ? t.categorie : `${t.categorie} - ${t.nom}`}
+                       {/* On applique aussi le nettoyage ici pour le menu */}
+                       {cleanTeamName(t.nom === t.categorie ? t.categorie : `${t.categorie} - ${t.nom}`)}
                      </option>
                    ))}
                  </select>
@@ -234,36 +252,53 @@ export default function MatchsPageDynamique() {
                     <div className="text-[#ff9d00] font-black text-base italic">{format(new Date(match.date_heure), 'HH:mm')}</div>
                   </div>
 
-                  {/* EQUIPES */}
-                  <div className="flex-1 flex items-center justify-center gap-4 z-10 w-full min-w-0">
-                    {/* NOM EQUIPE */}
-                    <span className="flex-1 font-black text-lg md:text-xl text-black tracking-tighter text-right truncate">
-                        {match.equipes?.categorie || match.equipes?.nom}
+                  {/* EQUIPES (SECTION MODIFIÉE + NETTOYAGE) */}
+                  <div className="flex-1 flex items-center justify-center gap-2 md:gap-4 z-10 w-full min-w-0 px-2">
+                    <span className="flex-1 font-black text-xs md:text-base text-black tracking-tighter text-right break-words leading-tight">
+                        {/* Application de cleanTeamName */}
+                        {cleanTeamName(match.equipes?.categorie || match.equipes?.nom)}
                     </span>
-                    
-                    {/* VS BADGE */}
-                    <div className="w-10 h-8 bg-black text-white text-[10px] rounded-lg flex items-center justify-center font-black skew-x-[-10deg] shrink-0 shadow-md">VS</div>
-                    
-                    {/* ADVERSAIRE */}
-                    <span className="flex-1 font-black text-lg md:text-xl text-black tracking-tighter text-left truncate">
-                        {match.adversaire}
+                    <div className="w-8 h-6 md:w-10 md:h-8 bg-black text-white text-[9px] rounded-lg flex items-center justify-center font-black skew-x-[-10deg] shrink-0 shadow-md">VS</div>
+                    <span className="flex-1 font-black text-xs md:text-base text-black tracking-tighter text-left break-words leading-tight">
+                        {/* Application de cleanTeamName */}
+                        {cleanTeamName(match.adversaire)}
                     </span>
                   </div>
 
-                  {/* STATUT / BOUTON ACTION */}
-                  <div 
-                    onClick={() => openScoreModal(match)}
-                    className={`cursor-pointer px-6 py-4 rounded-2xl font-black text-xl min-w-[140px] text-center transition-all z-20 flex items-center justify-center gap-2 hover:scale-105 active:scale-95
-                      ${match.statut === 'termine' ? 'bg-gray-100 text-black hover:bg-[#ff9d00] hover:text-white' : 'bg-white text-black border-2 border-gray-100 hover:border-black shadow-sm'}
-                    `}
-                  >
-                    {match.statut === 'termine' ? (
-                        <>{match.score_home} - {match.score_away}</>
-                    ) : (
-                        <span className="text-gray-300 group-hover:text-black flex items-center gap-2 text-sm">
-                          <Edit2 size={14} /> SCORE
-                        </span>
-                    )}
+                  {/* BOUTONS ACTIONS (Zone Droite) */}
+                  <div className="flex items-center gap-2 z-20">
+                      
+                      {/* BOUTON TACTIQUE */}
+                      <Link 
+                        href={`/dashboard/matchs/${match.id}/tactique`}
+                        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:bg-black hover:text-white transition-colors"
+                        title="Voir la composition tactique"
+                      >
+                         <Users size={18} />
+                      </Link>
+
+                      {/* STATUT / SCORE (MODIFIABLE) */}
+                      <div 
+                        onClick={() => openScoreModal(match)}
+                        className={`cursor-pointer px-4 md:px-6 py-4 rounded-2xl font-black text-xl min-w-[100px] text-center transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95
+                          ${match.statut === 'termine' ? 'bg-gray-100 text-black hover:bg-[#ff9d00] hover:text-white' : 'bg-white text-black border-2 border-gray-100 hover:border-black shadow-sm'}
+                        `}
+                      >
+                        {match.statut === 'termine' ? (
+                            <>{match.score_home} - {match.score_away}</>
+                        ) : (
+                            <Edit2 size={16} className="text-gray-300" />
+                        )}
+                      </div>
+
+                      {/* BOUTON SUPPRESSION */}
+                      <button 
+                         onClick={() => handleDeleteMatch(match.id)}
+                         className="w-12 h-12 flex items-center justify-center rounded-2xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-colors"
+                         title="Supprimer le match"
+                      >
+                         <Trash2 size={18} />
+                      </button>
                   </div>
 
                   <Trophy className="absolute -right-6 -bottom-6 text-gray-50 group-hover:text-[#ff9d00]/5 transition-all duration-700 pointer-events-none" size={140} />

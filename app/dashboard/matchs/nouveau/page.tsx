@@ -4,335 +4,333 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
-  ArrowLeft, Save, Loader2, Calendar, 
-  MapPin, Users, Trophy, ChevronDown, RefreshCw
+  ArrowLeft, 
+  Calendar, 
+  MapPin, 
+  Users, 
+  ChevronRight, 
+  Loader2, 
+  Shield,
+  Clock,
+  Trophy,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
-// Import de la modale
-import AlertModal from '@/app/components/AlertModal';
 
 export default function NewMatchPage() {
   const router = useRouter();
   
-  // États de chargement
+  // --- ÉTATS DE CHARGEMENT ---
   const [loading, setLoading] = useState(false);
-  const [loadingTeams, setLoadingTeams] = useState(true);
-  
-  // Données
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // --- DONNÉES ---
   const [myTeams, setMyTeams] = useState<any[]>([]);
-  const [adversairesList, setAdversairesList] = useState<any[]>([]);
+  const [poolOpponents, setPoolOpponents] = useState<string[]>([]); // Liste issue du scraping
   
-  // États du formulaire
-  const [formData, setFormData] = useState({
-    equipe_id: '',
-    adversaire: '',
-    date: '',
-    heure: '',
-    lieu: 'Domicile',
-    type: 'Championnat'
-  });
+  // --- FORMULAIRE ---
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [adversaire, setAdversaire] = useState("");
+  const [date, setDate] = useState("");
+  const [heure, setHeure] = useState("");
+  const [lieu, setLieu] = useState("Domicile"); // Domicile / Extérieur / Neutre
+  const [typeMatch, setTypeMatch] = useState("Championnat"); // Championnat / Amical / Coupe
 
-  const [manualInput, setManualInput] = useState(false);
+  // État pour l'autocomplétion (Adversaire)
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // --- GESTION DE LA MODALE ---
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    type: 'error' | 'success';
-    title: string;
-    message: string;
-  }>({ isOpen: false, type: 'success', title: '', message: '' });
-
-  const closeModal = () => setModalState(prev => ({ ...prev, isOpen: false }));
-
-  // 1. Charger les équipes
+  // --- 1. CHARGEMENT INITIAL ---
   useEffect(() => {
-    const fetchMyTeams = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+    fetchMyTeams();
+  }, []);
 
-      const { data: profile } = await supabase
+  const fetchMyTeams = async () => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        // On récupère l'équipe ET le classement_data pour avoir la liste des adversaires
+        const { data, error } = await supabase
+          .from('equipes')
+          .select('id, nom, categorie, classement_data')
+          .order('categorie', { ascending: true });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setMyTeams(data);
+          // Sélection par défaut de la première équipe
+          setSelectedTeamId(data[0].id);
+          extractOpponents(data[0]); 
+        }
+    } catch (err) {
+        console.error("Erreur chargement équipes:", err);
+    }
+  };
+
+  // --- 2. GESTION DE LA LISTE ADVERSAIRES (Poule) ---
+  useEffect(() => {
+    if (selectedTeamId) {
+      const team = myTeams.find(t => t.id === selectedTeamId);
+      if (team) extractOpponents(team);
+    }
+  }, [selectedTeamId]);
+
+  const extractOpponents = (team: any) => {
+    // Si on a des données de classement (scrapées), on remplit la liste
+    if (team.classement_data && Array.isArray(team.classement_data)) {
+      const ops = team.classement_data
+        .map((row: any) => row.nom || row.nom_equipe) // Gère les deux formats possibles
+        .filter((name: string) => name && name.toUpperCase().trim() !== team.nom.toUpperCase().trim());
+      
+      setPoolOpponents(ops);
+    } else {
+      setPoolOpponents([]);
+    }
+  };
+
+  // --- 3. SOUMISSION & REDIRECTION ---
+  const handleNextStep = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    if (!selectedTeamId || !adversaire || !date) {
+        setErrorMsg("Veuillez remplir tous les champs obligatoires.");
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Récupération Session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Vous n'êtes pas connecté.");
+      
+      // 2. Récupération Profil (CORRECTION ERREUR CLUB_ID)
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('club_id')
         .eq('id', session.user.id)
         .single();
 
-      if (profile?.club_id) {
-        // IMPORTANT : On récupère aussi le club_id dans l'objet équipe pour l'insertion future
-        const { data: teams } = await supabase
-          .from('equipes')
-          .select('*')
-          .eq('club_id', profile.club_id)
-          .order('categorie', { ascending: true });
-        
-        if (teams) {
-          setMyTeams(teams);
-          if (teams.length > 0) {
-            setFormData(prev => ({ ...prev, equipe_id: teams[0].id }));
-          }
-        }
-      }
-      setLoadingTeams(false);
-    };
-
-    fetchMyTeams();
-  }, []);
-
-  // 2. Charger les adversaires
-  useEffect(() => {
-    const fetchAdversaires = async () => {
-      if (!formData.equipe_id) return;
-      
-      const { data } = await supabase
-        .from('adversaires')
-        .select('*')
-        .eq('mon_equipe_id', formData.equipe_id)
-        .order('nom', { ascending: true });
-
-      if (data && data.length > 0) {
-        setAdversairesList(data);
-        setManualInput(false); 
-      } else {
-        setAdversairesList([]);
-        setManualInput(true);
-      }
-    };
-
-    fetchAdversaires();
-  }, [formData.equipe_id]);
-
-  // --- SOUMISSION ---
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Session expirée, veuillez vous reconnecter.");
-
-      // Vérification des données
-      const selectedTeam = myTeams.find(t => t.id === formData.equipe_id);
-      if (!selectedTeam) throw new Error("Équipe sélectionnée invalide.");
-      if (!selectedTeam.club_id) throw new Error("Club ID introuvable pour cette équipe.");
-      if (!formData.adversaire) throw new Error("Veuillez renseigner un adversaire.");
-
-      const dateHeure = `${formData.date}T${formData.heure}:00`;
-
-      // Insertion
-      const { error } = await supabase.from('matchs').insert({
-        club_id: selectedTeam.club_id,
-        equipe_id: formData.equipe_id,
-        adversaire: formData.adversaire.toUpperCase(),
-        date_heure: dateHeure,
-        lieu: formData.lieu,
-        type: formData.type,
-        statut: 'programme',
-        created_by: session.user.id
-      });
-
-      if (error) {
-        // On affiche le message précis de la base de données
-        throw new Error(error.message); 
+      if (profileError || !profile) {
+          throw new Error("Impossible de récupérer votre profil club.");
       }
 
-      // Succès
-      setModalState({
-        isOpen: true,
-        type: 'success',
-        title: 'Match Planifié',
-        message: `La rencontre contre ${formData.adversaire} a été ajoutée au calendrier.`
-      });
-      
-      // On redirige après un court délai ou au clic sur la modale
-      setTimeout(() => {
-        router.push('/dashboard/matchs');
-        router.refresh();
-      }, 2000);
+      // 3. CRÉATION DU MATCH EN BASE
+      const { data: match, error: matchError } = await supabase
+        .from('matchs')
+        .insert({
+          club_id: profile.club_id, // Ici profile est garanti non-null
+          equipe_id: selectedTeamId,
+          adversaire: adversaire,
+          date_heure: `${date}T${heure || '00:00'}:00`,
+          lieu: lieu,
+          type: typeMatch,
+          statut: 'programme', // Statut par défaut
+          score_home: 0,
+          score_away: 0
+        })
+        .select()
+        .single();
 
-    } catch (error: any) {
-      console.error(error);
-      setModalState({
-        isOpen: true,
-        type: 'error',
-        title: 'Erreur Création',
-        message: error.message || "Impossible de créer le match. Vérifiez votre connexion."
-      });
-    } finally {
-      setLoading(false);
+      if (matchError) throw matchError;
+
+      // 4. REDIRECTION VERS L'ÉTAPE 2 : SÉLECTION DES JOUEURS
+      router.push(`/dashboard/matchs/${match.id}/selection`);
+
+    } catch (err: any) {
+      console.error("Erreur création match:", err);
+      setErrorMsg(err.message || "Une erreur est survenue lors de la création.");
+      setLoading(false); // On arrête le chargement seulement si erreur
     }
   };
 
-  if (loadingTeams) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]">
-      <Loader2 className="animate-spin text-[#ff9d00]" size={40} />
-    </div>
+  // Filtrage pour l'autocomplétion
+  const filteredSuggestions = poolOpponents.filter(op => 
+    op.toLowerCase().includes(adversaire.toLowerCase())
   );
 
   return (
-    <>
-      <AlertModal 
-        isOpen={modalState.isOpen} 
-        onClose={closeModal} 
-        type={modalState.type} 
-        title={modalState.title} 
-        message={modalState.message} 
-      />
-
-      <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans italic text-[#1a1a1a]">
-        <div className="max-w-2xl mx-auto">
-          
-          <div className="flex items-center gap-4 mb-8">
-            <Link href="/dashboard/matchs" className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00] transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
-            <h1 className="text-3xl font-black uppercase tracking-tighter">
-              NOUVEAU <span className="text-[#ff9d00]">MATCH</span>
-            </h1>
+    <div className="min-h-screen bg-[#f9fafb] p-6 md:p-12 font-sans text-[#1a1a1a]">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* HEADER */}
+        <div className="flex items-center gap-4 mb-10">
+          <Link href="/dashboard/matchs" className="p-3 bg-white rounded-xl shadow-sm hover:text-[#ff9d00] transition-colors">
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+             <h1 className="text-3xl font-black italic uppercase tracking-tighter">NOUVEAU MATCH</h1>
+             <p className="text-[#ff9d00] text-xs font-bold uppercase tracking-widest">Étape 1/3 : Infos & Adversaire</p>
           </div>
+        </div>
 
-          <form onSubmit={handleSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 space-y-8">
+        {/* AFFICHAGE ERREUR */}
+        {errorMsg && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-500 text-xs font-bold uppercase">
+                <AlertTriangle size={18} />
+                {errorMsg}
+            </div>
+        )}
+
+        <form onSubmit={handleNextStep} className="space-y-6">
+          
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
             
-            {/* 1. SÉLECTION ÉQUIPE */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2">Votre Équipe</label>
+            {/* SÉLECTION ÉQUIPE */}
+            <div className="mb-8">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                Mon Équipe
+              </label>
               <div className="relative">
-                <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                 <select 
-                  value={formData.equipe_id}
-                  onChange={(e) => setFormData({...formData, equipe_id: e.target.value})}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pl-12 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-[#ff9d00] appearance-none cursor-pointer"
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold uppercase appearance-none outline-none focus:border-[#ff9d00] transition-colors cursor-pointer"
                 >
-                  {myTeams.map(team => (
-                    <option key={team.id} value={team.id}>{team.categorie} - {team.nom}</option>
+                  {myTeams.map(t => (
+                    <option key={t.id} value={t.id}>
+                       {t.nom === t.categorie ? t.nom : `${t.categorie} - ${t.nom}`}
+                    </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18}/>
+                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
               </div>
             </div>
 
-            {/* 2. ADVERSAIRE */}
-            <div>
-              <div className="flex justify-between items-center mb-2 ml-2">
-                 <label className="text-[10px] font-black uppercase text-gray-400">Adversaire</label>
-                 <button 
-                   type="button"
-                   onClick={() => {
-                     setManualInput(!manualInput);
-                     setFormData({...formData, adversaire: ''});
-                   }}
-                   className="text-[9px] font-bold text-[#ff9d00] flex items-center gap-1 hover:underline"
-                 >
-                   <RefreshCw size={10} />
-                   {manualInput && adversairesList.length > 0 ? "CHOISIR DANS LA LISTE" : "SAISIE MANUELLE (AMICAL/COUPE)"}
-                 </button>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                
+                {/* --- CHAMP ADVERSAIRE (HYBRIDE) --- */}
+                <div className="relative z-20">
+                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                     Adversaire
+                   </label>
+                   <div className="relative">
+                      <input 
+                        type="text" 
+                        value={adversaire}
+                        onChange={(e) => { setAdversaire(e.target.value); setShowSuggestions(true); }}
+                        onFocus={() => setShowSuggestions(true)}
+                        // Petit délai pour permettre le clic sur la suggestion avant que le champ perde le focus
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        placeholder="Sélectionner ou saisir..."
+                        className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-black uppercase outline-none focus:border-[#ff9d00] transition-colors placeholder:font-medium placeholder:normal-case"
+                        required
+                        autoComplete="off"
+                      />
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                      
+                      {/* MENU DÉROULANT DES SUGGESTIONS */}
+                      {showSuggestions && filteredSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
+                            {filteredSuggestions.map((op, idx) => (
+                                <div 
+                                  key={idx}
+                                  onClick={() => { setAdversaire(op); setShowSuggestions(false); }}
+                                  className="p-3 px-4 hover:bg-[#ff9d00]/10 hover:text-[#ff9d00] cursor-pointer text-xs font-bold uppercase transition-colors border-b border-gray-50 last:border-0"
+                                >
+                                    {op}
+                                </div>
+                            ))}
+                        </div>
+                      )}
+                   </div>
+                   {/* Indication visuelle si suggestions disponibles */}
+                   {poolOpponents.length > 0 && (
+                      <p className="text-[9px] text-gray-300 mt-2 pl-2 italic flex items-center gap-1">
+                        <Trophy size={10} /> {poolOpponents.length} équipes détectées
+                      </p>
+                   )}
+                </div>
 
-              <div className="relative">
-                <Trophy className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                {!manualInput && adversairesList.length > 0 ? (
-                  <div className="relative">
-                    <select 
-                      value={formData.adversaire}
-                      onChange={(e) => setFormData({...formData, adversaire: e.target.value})}
-                      required
-                      className="w-full bg-white border-2 border-[#ff9d00]/20 rounded-2xl p-4 pl-12 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-[#ff9d00] appearance-none cursor-pointer text-black"
-                    >
-                      <option value="">-- SÉLECTIONNER UN CLUB --</option>
-                      {adversairesList.map((adv) => (
-                        <option key={adv.id} value={adv.nom}>{adv.nom}</option>
+                {/* TYPE DE MATCH */}
+                <div>
+                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                     Type de Match
+                   </label>
+                   <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
+                      {['Championnat', 'Amical', 'Coupe'].map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setTypeMatch(type)}
+                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${typeMatch === type ? 'bg-black text-white shadow-md' : 'text-gray-400 hover:bg-white'}`}
+                          >
+                              {type}
+                          </button>
                       ))}
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18}/>
+                   </div>
+                </div>
+            </div>
+
+            {/* DATE / HEURE / LIEU */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div className="md:col-span-1">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                    Date
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold outline-none focus:border-[#ff9d00]"
+                      required
+                    />
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                   </div>
-                ) : (
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="NOM DU CLUB ADVERSE"
-                    value={formData.adversaire}
-                    onChange={(e) => setFormData({...formData, adversaire: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pl-12 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-[#ff9d00]"
-                  />
-                )}
-              </div>
+               </div>
+               
+               <div className="md:col-span-1">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                    Heure
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="time" 
+                      value={heure}
+                      onChange={(e) => setHeure(e.target.value)}
+                      className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold outline-none focus:border-[#ff9d00]"
+                      required
+                    />
+                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                  </div>
+               </div>
+
+               <div className="md:col-span-1">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 pl-2">
+                    Lieu
+                  </label>
+                  <div className="relative">
+                     <select 
+                       value={lieu}
+                       onChange={(e) => setLieu(e.target.value)}
+                       className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold uppercase appearance-none outline-none focus:border-[#ff9d00] cursor-pointer"
+                     >
+                       <option value="Domicile">Domicile</option>
+                       <option value="Exterieur">Extérieur</option>
+                       <option value="Neutre">Terrain Neutre</option>
+                     </select>
+                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                  </div>
+               </div>
             </div>
+          </div>
 
-            {/* 3. DATE & HEURE */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2">Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                  <input 
-                    type="date" 
-                    required
-                    value={formData.date}
-                    onChange={(e) => setFormData({...formData, date: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pl-12 text-sm font-bold outline-none focus:ring-2 focus:ring-[#ff9d00]"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2">Heure</label>
-                <div className="relative">
-                   <input 
-                    type="time" 
-                    required
-                    value={formData.heure}
-                    onChange={(e) => setFormData({...formData, heure: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center text-sm font-bold outline-none focus:ring-2 focus:ring-[#ff9d00]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 4. LIEU & TYPE */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2">Lieu</label>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                  <select 
-                    value={formData.lieu}
-                    onChange={(e) => setFormData({...formData, lieu: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pl-12 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-[#ff9d00] appearance-none"
-                  >
-                    <option value="Domicile">Domicile</option>
-                    <option value="Exterieur">Extérieur</option>
-                    <option value="Neutre">Terrain Neutre</option>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18}/>
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2">Type</label>
-                <div className="relative">
-                  <select 
-                    value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-[#ff9d00] appearance-none"
-                  >
-                    <option value="Championnat">Championnat</option>
-                    <option value="Coupe">Coupe</option>
-                    <option value="Amical">Amical</option>
-                    <option value="Tournoi">Tournoi</option>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18}/>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-black text-white py-5 rounded-2xl font-black text-xs tracking-[0.2em] uppercase hover:bg-[#ff9d00] transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="animate-spin" /> : <Save size={18} />}
-              {loading ? "Création..." : "Planifier le match"}
-            </button>
-
-          </form>
-        </div>
+          {/* ACTION BUTTON */}
+          <div className="flex justify-end pt-4">
+             <button 
+               type="submit" 
+               disabled={loading}
+               className="bg-[#ff9d00] text-white px-8 py-5 rounded-2xl font-black text-xs tracking-widest uppercase hover:bg-black transition-all shadow-xl hover:shadow-2xl active:scale-95 flex items-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+             >
+                {loading ? <Loader2 className="animate-spin" /> : "SUIVANT : SÉLECTION JOUEURS"} 
+                {!loading && <ChevronRight size={16} />}
+             </button>
+          </div>
+        </form>
       </div>
-    </>
+    </div>
   );
 }
